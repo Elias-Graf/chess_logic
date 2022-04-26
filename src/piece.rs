@@ -33,6 +33,7 @@ impl Piece {
 
         let instance = match board.get(x, y) {
             board::PositionInfo::Piece(piece) => piece.clone(),
+            board::PositionInfo::None => return,
             info => panic!(
                 "can only add moves for pieces, but piece at position {}/{} was {:?}",
                 x, y, info
@@ -58,9 +59,13 @@ impl Piece {
 
     fn add_king_moves_to_board(x: i8, y: i8, board: &mut Board) {
         Self::add_moves_by_direction_and_length(x, y, Direction::North, 1, board);
+        Self::add_moves_by_direction_and_length(x, y, Direction::NorthEast, 1, board);
         Self::add_moves_by_direction_and_length(x, y, Direction::East, 1, board);
+        Self::add_moves_by_direction_and_length(x, y, Direction::SouthEast, 1, board);
         Self::add_moves_by_direction_and_length(x, y, Direction::South, 1, board);
+        Self::add_moves_by_direction_and_length(x, y, Direction::SouthWest, 1, board);
         Self::add_moves_by_direction_and_length(x, y, Direction::West, 1, board);
+        Self::add_moves_by_direction_and_length(x, y, Direction::NorthWest, 1, board);
     }
 
     fn add_knight_moves_to_board(piece_x: i8, piece_y: i8, board: &mut Board) {
