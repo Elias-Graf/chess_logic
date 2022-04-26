@@ -72,22 +72,6 @@ impl Board {
         board
     }
 
-    pub fn width(&self) -> i8 {
-        return self.width;
-    }
-
-    pub fn height(&self) -> i8 {
-        return self.height;
-    }
-
-    /// Checks if a position is within the bounds of the board.
-    ///
-    /// The variable might safely be cased to [`usize`] after `true` was returned
-    /// from this function.
-    pub fn is_in_bounds(&self, x: i8, y: i8) -> bool {
-        x >= 0 && x < self.width && y >= 0 && y < self.height
-    }
-
     pub fn display(&self) -> String {
         const BG_BLACK: &str = "\u{001b}[40m";
         const BG_WHITE: &str = "\u{001b}[47m";
@@ -163,32 +147,43 @@ impl Board {
         val
     }
 
-    /// Adds a new piece to the board.
-    ///
-    /// Creates and adds a completely new piece to the board. New pieces can only
-    /// be added to empty positions.
-    pub fn set_piece(&mut self, x: i8, y: i8, player: Player, piece: Piece) {
+    pub fn get(&self, x: i8, y: i8) -> &PositionInfo {
         assert!(
             self.is_in_bounds(x, y),
-            "cannot set piece at out of bounds position ({}/{})",
+            "cannot get piece outside of board ({}/{})",
             x,
             y
         );
 
-        let pos = self.get(x, y);
+        &self.board[x as usize][y as usize]
+    }
 
-        if let PositionInfo::None = pos {
-            let instance = PieceInstance::new(player, piece);
-
-            self.set(x as usize, y as usize, PositionInfo::Piece(instance));
-
-            return;
+    pub fn get_color_of_player(&self, player: &Player) -> &Color {
+        match player {
+            Player::Opponent => &self.opponent_color,
+            Player::You => &self.you_color,
         }
+    }
 
-        panic!(
-            "pieces can only be set on empty positions, but position was {:?}",
-            pos
-        );
+    pub fn height(&self) -> i8 {
+        return self.height;
+    }
+
+    /// Checks if a position is within the bounds of the board.
+    ///
+    /// The variable might safely be cased to [`usize`] after `true` was returned
+    /// from this function.
+    pub fn is_in_bounds(&self, x: i8, y: i8) -> bool {
+        x >= 0 && x < self.width && y >= 0 && y < self.height
+    }
+
+    /// "Low-level" set function, that simply overrides a position with the given
+    /// value.
+    ///
+    /// The passed values are **not** checked for validity, e.g. if they are in
+    /// the boards bounds. That burden is on the caller of this function.
+    fn set(&mut self, x: usize, y: usize, info: PositionInfo) {
+        self.board[x][y] = info;
     }
 
     /// For a piece at a given position, set a move or a hit at a given position.
@@ -245,6 +240,38 @@ impl Board {
         false
     }
 
+    /// Adds a new piece to the board.
+    ///
+    /// Creates and adds a completely new piece to the board. New pieces can only
+    /// be added to empty positions.
+    pub fn set_piece(&mut self, x: i8, y: i8, player: Player, piece: Piece) {
+        assert!(
+            self.is_in_bounds(x, y),
+            "cannot set piece at out of bounds position ({}/{})",
+            x,
+            y
+        );
+
+        let pos = self.get(x, y);
+
+        if let PositionInfo::None = pos {
+            let instance = PieceInstance::new(player, piece);
+
+            self.set(x as usize, y as usize, PositionInfo::Piece(instance));
+
+            return;
+        }
+
+        panic!(
+            "pieces can only be set on empty positions, but position was {:?}",
+            pos
+        );
+    }
+
+    pub fn width(&self) -> i8 {
+        return self.width;
+    }
+
     pub fn with_moves_for(&self, x: i8, y: i8) -> Self {
         assert!(
             self.is_in_bounds(x, y),
@@ -258,33 +285,6 @@ impl Board {
         Piece::add_moves_to_board_for_piece_at(x, y, &mut board);
 
         board
-    }
-
-    pub fn get(&self, x: i8, y: i8) -> &PositionInfo {
-        assert!(
-            self.is_in_bounds(x, y),
-            "cannot get piece outside of board ({}/{})",
-            x,
-            y
-        );
-
-        &self.board[x as usize][y as usize]
-    }
-
-    pub fn get_color_of_player(&self, player: &Player) -> &Color {
-        match player {
-            Player::Opponent => &self.opponent_color,
-            Player::You => &self.you_color,
-        }
-    }
-
-    /// "Low-level" set function, that simply overrides a position with the given
-    /// value.
-    ///
-    /// The passed values are **not** checked for validity, e.g. if they are in
-    /// the boards bounds. That burden is on the caller of this function.
-    fn set(&mut self, x: usize, y: usize, info: PositionInfo) {
-        self.board[x][y] = info;
     }
 }
 
