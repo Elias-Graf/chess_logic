@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 
-use crate::{piece, Color, Piece, Player};
+use crate::{Color, Piece, Player};
 
 #[derive(Clone, Debug)]
 pub enum PositionInfo {
@@ -15,11 +15,15 @@ pub struct Board {
     board: Vec<Vec<PositionInfo>>,
     height: i8,
     opponent_color: Color,
+    selected_pos: Option<(i8, i8)>,
     width: i8,
     you_color: Color,
 }
 
 impl Board {
+    // TODO: rework.
+    // Or most likely remove / simplify. Since this isn't really meant to be displayed
+    // to the user, a more rudimentary implementation should suffice.
     pub fn display(&self) -> String {
         const BG_BLACK: &str = "\u{001b}[40m";
         const BG_WHITE: &str = "\u{001b}[47m";
@@ -95,50 +99,6 @@ impl Board {
         val
     }
 
-    pub fn move_piece(&mut self, piece_x: i8, piece_y: i8, to_x: i8, to_y: i8) {
-        assert!(
-            self.is_in_bounds(piece_x, piece_y),
-            "cannot move piece that is not on the board ({}/{})",
-            piece_x,
-            piece_y
-        );
-        assert!(
-            self.is_in_bounds(to_x, to_y),
-            "cannot move piece outside the board (move to {}/{})",
-            to_x,
-            to_y,
-        );
-
-        let mut instance_of_piece_to_move = match self.get(piece_x, piece_y) {
-            PositionInfo::Piece(instance) => instance.clone(),
-            info => panic!(
-                "can only move position that contain pieces, but position at {}/{} contained a '{:?}'",
-                piece_x,
-                piece_y,
-                info,
-            ),
-        };
-
-        let board_with_moves = self.with_moves_for(piece_x, piece_y);
-        let is_valid_move = matches!(
-            board_with_moves.get(to_x, to_y),
-            PositionInfo::Move | PositionInfo::Hit(_)
-        );
-
-        if !is_valid_move {
-            return;
-        }
-
-        instance_of_piece_to_move.was_moved = true;
-
-        self.set(piece_x as usize, piece_y as usize, PositionInfo::None);
-        self.set(
-            to_x as usize,
-            to_y as usize,
-            PositionInfo::Piece(instance_of_piece_to_move),
-        );
-    }
-
     pub fn get(&self, x: i8, y: i8) -> &PositionInfo {
         assert!(
             self.is_in_bounds(x, y),
@@ -157,6 +117,10 @@ impl Board {
         }
     }
 
+    pub fn get_selected(&self) -> &Option<(i8, i8)> {
+        &self.selected_pos
+    }
+
     pub fn height(&self) -> i8 {
         return self.height;
     }
@@ -169,6 +133,52 @@ impl Board {
         x >= 0 && x < self.width && y >= 0 && y < self.height
     }
 
+    /// Moves the currently selected piece to the specified position (if possible).
+    /// One may select a piece using [`Self::update_selected()`].
+    ///
+    /// Returns `true` if the piece was moved.
+    pub fn move_selected_to(&mut self, x: i8, y: i8) -> bool {
+        assert!(
+            self.is_in_bounds(x, y),
+            "cannot move piece outside the board (move to {}/{})",
+            x,
+            y,
+        );
+
+        let (piece_x, piece_y) = match self.selected_pos {
+            None => panic!("cannot move when no piece was selected, use `Self::update_selection()` to select a piece"),
+            Some(pos) => pos,
+        };
+
+        let mut instance_of_piece_to_move = match self.get(piece_x, piece_y) {
+            PositionInfo::Piece(instance) => instance.clone(),
+            info => panic!("unexpected: {:?}", info),
+        };
+
+        let board_with_moves = self.with_moves_for_selected();
+        let is_valid_move = matches!(
+            board_with_moves.get(x, y),
+            PositionInfo::Move | PositionInfo::Hit(_)
+        );
+
+        if !is_valid_move {
+            return false;
+        }
+
+        instance_of_piece_to_move.was_moved = true;
+
+        self.set(piece_x as usize, piece_y as usize, PositionInfo::None);
+        self.set(
+            x as usize,
+            y as usize,
+            PositionInfo::Piece(instance_of_piece_to_move),
+        );
+
+        self.selected_pos = None;
+
+        true
+    }
+
     pub fn new(you_color: Color, opponent_color: Color) -> Self {
         let width = 8;
         let height = 8;
@@ -177,6 +187,7 @@ impl Board {
             board: vec![vec![PositionInfo::None; width]; height],
             height: height as i8,
             opponent_color,
+            selected_pos: None,
             width: width as i8,
             you_color,
         };
@@ -312,21 +323,55 @@ impl Board {
         );
     }
 
-    pub fn width(&self) -> i8 {
-        return self.width;
-    }
-
-    pub fn with_moves_for(&self, x: i8, y: i8) -> Self {
+    /// Updates the piece selection.
+    ///
+    /// After a piece has been selected, certain things might be performed like moving
+    /// it to another spot on the board.
+    ///
+    /// Rules:
+    /// - Selecting any piece will result in the selection to be updated.
+    /// - Selecting an empty square will remove the selection.
+    /// - Selecting the current selected piece will remove the selection.
+    pub fn update_selected(&mut self, x: i8, y: i8) {
         assert!(
             self.is_in_bounds(x, y),
-            "cannot get board with moves for out of bounds position ({}/{})",
+            "cannot select piece outside of board ({}/{})",
             x,
             y
         );
 
+        match self.get(x, y) {
+            PositionInfo::Hit(_) => {
+                panic!("cannot select a 'hit', did you mean to `Self::move_selected_to()`?")
+            }
+            PositionInfo::Move => {
+                panic!("cannot select a 'move', did you mean to `Self::move_selected_to()`?")
+            }
+            PositionInfo::None => self.selected_pos = None,
+            PositionInfo::Piece(_) => {
+                if let Some(previous_selection) = self.selected_pos {
+                    if previous_selection == (x, y) {
+                        self.selected_pos = None;
+                    } else {
+                        self.selected_pos = Some((x, y));
+                    }
+                } else {
+                    self.selected_pos = Some((x, y));
+                }
+            }
+        }
+    }
+
+    pub fn width(&self) -> i8 {
+        return self.width;
+    }
+
+    pub fn with_moves_for_selected(&self) -> Self {
         let mut board = self.clone();
 
-        Piece::add_moves_to_board_for_piece_at(x, y, &mut board);
+        if let Some((x, y)) = self.selected_pos {
+            Piece::add_moves_to_board_for_piece_at(x, y, &mut board);
+        }
 
         board
     }
