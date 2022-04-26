@@ -1,4 +1,4 @@
-use crate::{Board, Player};
+use crate::{board, Board, Player};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Piece {
@@ -23,19 +23,27 @@ impl Piece {
         .to_owned()
     }
 
-    pub fn add_moves_to_board(x: i8, y: i8, player: &Player, piece: &Self, board: &mut Board) {
+    pub fn add_moves_to_board_for_piece_at(x: i8, y: i8, board: &mut Board) {
         assert!(
             board.is_in_bounds(x, y),
-            "can not add moves for piece out of bounds ({}/{})",
+            "cannot add moves to board for piece out of bounds ({}/{})",
             x,
-            y
+            y,
         );
 
-        match piece {
+        let instance = match board.get(x, y) {
+            board::PositionInfo::Piece(piece) => piece.clone(),
+            info => panic!(
+                "can only add moves for pieces, but piece at position {}/{} was {:?}",
+                x, y, info
+            ),
+        };
+
+        match &instance.piece {
             Self::Bishop => Self::add_bishop_moves_to_board(x, y, board),
             Self::King => Self::add_king_moves_to_board(x, y, board),
             Self::Knight => Self::add_knight_moves_to_board(x, y, board),
-            Self::Pawn => Self::add_pawn_moves_to_board(x, y, player, board),
+            Self::Pawn => Self::add_pawn_moves_to_board(x, y, instance, board),
             Self::Queen => Self::add_queen_moves_to_board(x, y, board),
             Self::Rook => Self::add_rook_moves_to_board(x, y, board),
         }
@@ -85,13 +93,19 @@ impl Piece {
         }
     }
 
-    fn add_pawn_moves_to_board(x: i8, y: i8, player: &Player, board: &mut Board) {
-        let move_y = match player {
-            Player::You => (y as i8) - 1,
-            Player::Opponent => (y as i8) + 1,
+    fn add_pawn_moves_to_board(x: i8, y: i8, instance: board::PieceInstance, board: &mut Board) {
+        let direction = if instance.player == Player::You {
+            -1
+        } else {
+            1
         };
 
-        board.set_for_piece_at_move_or_hit_at(x, y, x, move_y);
+        board.set_for_piece_at_move_or_hit_at(x, y, x, y + direction);
+
+        // The pawn is allowed to move two positions on it's first move.
+        if !instance.was_moved {
+            board.set_for_piece_at_move_or_hit_at(x, y, x, y + direction * 2);
+        }
     }
 
     fn add_queen_moves_to_board(x: i8, y: i8, board: &mut Board) {

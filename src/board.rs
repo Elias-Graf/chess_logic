@@ -2,6 +2,14 @@ use std::fmt::{self, Display};
 
 use crate::{Color, Piece, Player};
 
+#[derive(Clone, Debug)]
+pub enum PositionInfo {
+    Hit(PieceInstance),
+    Move,
+    None,
+    Piece(PieceInstance),
+}
+
 #[derive(Clone)]
 pub struct Board {
     board: Vec<Vec<PositionInfo>>,
@@ -117,16 +125,16 @@ impl Board {
                 }
 
                 match self.get(x, y) {
-                    PositionInfo::Hit((piece, _)) => {
+                    PositionInfo::Hit(instance) => {
                         fg_color = FG_MOVE;
-                        piece_symbol = Piece::get_symbol(piece);
+                        piece_symbol = Piece::get_symbol(&instance.piece);
                     }
-                    PositionInfo::Piece((piece, player)) => {
-                        fg_color = match self.get_color_of_player(player) {
+                    PositionInfo::Piece(instance) => {
+                        fg_color = match self.get_color_of_player(&instance.player) {
                             Color::Black => FG_PLAYER_BLACK,
                             Color::White => FG_PLAYER_WHITE,
                         };
-                        piece_symbol = Piece::get_symbol(piece);
+                        piece_symbol = Piece::get_symbol(&instance.piece);
                     }
                     PositionInfo::Move => {
                         piece_symbol = "..".to_owned();
@@ -155,6 +163,10 @@ impl Board {
         val
     }
 
+    /// Adds a new piece to the board.
+    ///
+    /// Creates and adds a completely new piece to the board. New pieces can only
+    /// be added to empty positions.
     pub fn set_piece(&mut self, x: i8, y: i8, player: Player, piece: Piece) {
         assert!(
             self.is_in_bounds(x, y),
@@ -166,7 +178,10 @@ impl Board {
         let pos = self.get(x, y);
 
         if let PositionInfo::None = pos {
-            self.set(x as usize, y as usize, PositionInfo::Piece((piece, player)));
+            let instance = PieceInstance::new(player, piece);
+
+            self.set(x as usize, y as usize, PositionInfo::Piece(instance));
+
             return;
         }
 
@@ -176,46 +191,55 @@ impl Board {
         );
     }
 
+    /// For a piece at a given position, set a move or a hit at a given position.
+    ///
+    /// If the position is a move or a hit will be determined depending on if an
+    /// opposing piece is present on the target position.
+    ///
     /// Returns `true` when a piece was hit and the piece should stop adding
     /// additional moves (at least for the current direction).
     pub fn set_for_piece_at_move_or_hit_at(
         &mut self,
-        moving_piece_x: i8,
-        moving_piece_y: i8,
-        hit_piece_x: i8,
-        hit_piece_y: i8,
+        piece_x: i8,
+        piece_y: i8,
+        target_x: i8,
+        target_y: i8,
     ) -> bool {
         assert!(
-            self.is_in_bounds(moving_piece_x, moving_piece_y),
-            "moving piece is out of bounds ({}/{})",
-            moving_piece_x,
-            moving_piece_y
+            self.is_in_bounds(piece_x, piece_y),
+            "cannot set move for piece out of bounds ({}/{})",
+            piece_x,
+            piece_y
         );
         assert!(
-            self.is_in_bounds(hit_piece_x, hit_piece_y),
-            "hit piece is out of bounds ({}/{})",
-            hit_piece_x,
-            hit_piece_y
+            self.is_in_bounds(target_x, target_y),
+            "cannot set move or hit outside bounds ({}/{})",
+            target_x,
+            target_y
         );
 
-        let moving_piece_pos_info = self.get(moving_piece_x, moving_piece_y);
-        let hit_pos = self.get(hit_piece_x, hit_piece_y);
+        let piece_pos = self.get(piece_x, piece_y);
+        let target_pos = self.get(target_x, target_y);
 
-        match hit_pos {
-            PositionInfo::None => self.set(hit_piece_x as usize, hit_piece_y as usize, PositionInfo::Move),
-            PositionInfo::Piece((hit_piece, hit_player)) => {
-                if let PositionInfo::Piece((_, moving_player)) = moving_piece_pos_info {
-                    if moving_player == hit_player {
+        // TODO: refactor.
+        match target_pos {
+            PositionInfo::None => self.set(target_x as usize, target_y as usize, PositionInfo::Move),
+            PositionInfo::Piece(target_piece_instance) => {
+
+
+                if let PositionInfo::Piece(piece_instance) = piece_pos {
+                    if target_piece_instance.player == piece_instance.player {
+                        // Cannot really "hit" an own piece, thus no hit is registered.
                         return true;
                     }
                 }
 
-                let info = PositionInfo::Hit((*hit_piece, hit_player.clone()));
-                self.set(hit_piece_x as usize, hit_piece_y as usize, info);
+                let info = PositionInfo::Hit(target_piece_instance.clone());
+                self.set(target_x as usize, target_y as usize, info);
 
                 return true;
             },
-            _ => panic!("moves or hits can only be set on positions that are empty or pieces are on, position was '{:?}'", hit_pos),
+            _ => panic!("moves or hits can only be set on positions that are empty or pieces are on, position was '{:?}'", target_pos),
         }
 
         false
@@ -231,12 +255,7 @@ impl Board {
 
         let mut board = self.clone();
 
-        let (piece, player) = match self.get(x, y) {
-            PositionInfo::Piece(p) => p,
-            _ => return board,
-        };
-
-        Piece::add_moves_to_board(x, y, player, piece, &mut board);
+        Piece::add_moves_to_board_for_piece_at(x, y, &mut board);
 
         board
     }
@@ -259,6 +278,11 @@ impl Board {
         }
     }
 
+    /// "Low-level" set function, that simply overrides a position with the given
+    /// value.
+    ///
+    /// The passed values are **not** checked for validity, e.g. if they are in
+    /// the boards bounds. That burden is on the caller of this function.
     fn set(&mut self, x: usize, y: usize, info: PositionInfo) {
         self.board[x][y] = info;
     }
@@ -271,9 +295,18 @@ impl Display for Board {
 }
 
 #[derive(Clone, Debug)]
-pub enum PositionInfo {
-    Hit((Piece, Player)),
-    Move,
-    None,
-    Piece((Piece, Player)),
+pub struct PieceInstance {
+    pub piece: Piece,
+    pub player: Player,
+    pub was_moved: bool,
+}
+
+impl PieceInstance {
+    pub fn new(player: Player, piece: Piece) -> Self {
+        Self {
+            piece,
+            player,
+            was_moved: false,
+        }
+    }
 }
