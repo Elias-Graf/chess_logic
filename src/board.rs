@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 
-use crate::{Color, Piece, Player};
+use crate::{piece, Color, Piece, Player};
 
 #[derive(Clone, Debug)]
 pub enum PositionInfo {
@@ -20,58 +20,6 @@ pub struct Board {
 }
 
 impl Board {
-    pub fn new(you_color: Color, opponent_color: Color) -> Self {
-        let width = 8;
-        let height = 8;
-
-        let mut board = Self {
-            board: vec![vec![PositionInfo::None; width]; height],
-            height: height as i8,
-            opponent_color,
-            width: width as i8,
-            you_color,
-        };
-
-        // Standard chess formation:
-        board.set_piece(0, 0, Player::Opponent, Piece::Rook);
-        board.set_piece(1, 0, Player::Opponent, Piece::Knight);
-        board.set_piece(2, 0, Player::Opponent, Piece::Bishop);
-        board.set_piece(3, 0, Player::Opponent, Piece::Queen);
-        board.set_piece(4, 0, Player::Opponent, Piece::King);
-        board.set_piece(5, 0, Player::Opponent, Piece::Bishop);
-        board.set_piece(6, 0, Player::Opponent, Piece::Knight);
-        board.set_piece(7, 0, Player::Opponent, Piece::Rook);
-
-        board.set_piece(0, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(1, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(2, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(3, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(4, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(5, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(6, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(7, 1, Player::Opponent, Piece::Pawn);
-
-        board.set_piece(0, 7, Player::You, Piece::Rook);
-        board.set_piece(1, 7, Player::You, Piece::Knight);
-        board.set_piece(2, 7, Player::You, Piece::Bishop);
-        board.set_piece(3, 7, Player::You, Piece::Queen);
-        board.set_piece(4, 7, Player::You, Piece::King);
-        board.set_piece(5, 7, Player::You, Piece::Bishop);
-        board.set_piece(6, 7, Player::You, Piece::Knight);
-        board.set_piece(7, 7, Player::You, Piece::Rook);
-
-        board.set_piece(0, 6, Player::You, Piece::Pawn);
-        board.set_piece(1, 6, Player::You, Piece::Pawn);
-        board.set_piece(2, 6, Player::You, Piece::Pawn);
-        board.set_piece(3, 6, Player::You, Piece::Pawn);
-        board.set_piece(4, 6, Player::You, Piece::Pawn);
-        board.set_piece(5, 6, Player::You, Piece::Pawn);
-        board.set_piece(6, 6, Player::You, Piece::Pawn);
-        board.set_piece(7, 6, Player::You, Piece::Pawn);
-
-        board
-    }
-
     pub fn display(&self) -> String {
         const BG_BLACK: &str = "\u{001b}[40m";
         const BG_WHITE: &str = "\u{001b}[47m";
@@ -147,6 +95,50 @@ impl Board {
         val
     }
 
+    pub fn move_piece(&mut self, piece_x: i8, piece_y: i8, to_x: i8, to_y: i8) {
+        assert!(
+            self.is_in_bounds(piece_x, piece_y),
+            "cannot move piece that is not on the board ({}/{})",
+            piece_x,
+            piece_y
+        );
+        assert!(
+            self.is_in_bounds(to_x, to_y),
+            "cannot move piece outside the board (move to {}/{})",
+            to_x,
+            to_y,
+        );
+
+        let mut instance_of_piece_to_move = match self.get(piece_x, piece_y) {
+            PositionInfo::Piece(instance) => instance.clone(),
+            info => panic!(
+                "can only move position that contain pieces, but position at {}/{} contained a '{:?}'",
+                piece_x,
+                piece_y,
+                info,
+            ),
+        };
+
+        let board_with_moves = self.with_moves_for(piece_x, piece_y);
+        let is_valid_move = matches!(
+            board_with_moves.get(to_x, to_y),
+            PositionInfo::Move | PositionInfo::Hit(_)
+        );
+
+        if !is_valid_move {
+            return;
+        }
+
+        instance_of_piece_to_move.was_moved = true;
+
+        self.set(piece_x as usize, piece_y as usize, PositionInfo::None);
+        self.set(
+            to_x as usize,
+            to_y as usize,
+            PositionInfo::Piece(instance_of_piece_to_move),
+        );
+    }
+
     pub fn get(&self, x: i8, y: i8) -> &PositionInfo {
         assert!(
             self.is_in_bounds(x, y),
@@ -175,6 +167,58 @@ impl Board {
     /// from this function.
     pub fn is_in_bounds(&self, x: i8, y: i8) -> bool {
         x >= 0 && x < self.width && y >= 0 && y < self.height
+    }
+
+    pub fn new(you_color: Color, opponent_color: Color) -> Self {
+        let width = 8;
+        let height = 8;
+
+        let mut board = Self {
+            board: vec![vec![PositionInfo::None; width]; height],
+            height: height as i8,
+            opponent_color,
+            width: width as i8,
+            you_color,
+        };
+
+        // Standard chess formation:
+        board.set_piece(0, 0, Player::Opponent, Piece::Rook);
+        board.set_piece(1, 0, Player::Opponent, Piece::Knight);
+        board.set_piece(2, 0, Player::Opponent, Piece::Bishop);
+        board.set_piece(3, 0, Player::Opponent, Piece::Queen);
+        board.set_piece(4, 0, Player::Opponent, Piece::King);
+        board.set_piece(5, 0, Player::Opponent, Piece::Bishop);
+        board.set_piece(6, 0, Player::Opponent, Piece::Knight);
+        board.set_piece(7, 0, Player::Opponent, Piece::Rook);
+
+        board.set_piece(0, 1, Player::Opponent, Piece::Pawn);
+        board.set_piece(1, 1, Player::Opponent, Piece::Pawn);
+        board.set_piece(2, 1, Player::Opponent, Piece::Pawn);
+        board.set_piece(3, 1, Player::Opponent, Piece::Pawn);
+        board.set_piece(4, 1, Player::Opponent, Piece::Pawn);
+        board.set_piece(5, 1, Player::Opponent, Piece::Pawn);
+        board.set_piece(6, 1, Player::Opponent, Piece::Pawn);
+        board.set_piece(7, 1, Player::Opponent, Piece::Pawn);
+
+        board.set_piece(0, 7, Player::You, Piece::Rook);
+        board.set_piece(1, 7, Player::You, Piece::Knight);
+        board.set_piece(2, 7, Player::You, Piece::Bishop);
+        board.set_piece(3, 7, Player::You, Piece::Queen);
+        board.set_piece(4, 7, Player::You, Piece::King);
+        board.set_piece(5, 7, Player::You, Piece::Bishop);
+        board.set_piece(6, 7, Player::You, Piece::Knight);
+        board.set_piece(7, 7, Player::You, Piece::Rook);
+
+        board.set_piece(0, 6, Player::You, Piece::Pawn);
+        board.set_piece(1, 6, Player::You, Piece::Pawn);
+        board.set_piece(2, 6, Player::You, Piece::Pawn);
+        board.set_piece(3, 6, Player::You, Piece::Pawn);
+        board.set_piece(4, 6, Player::You, Piece::Pawn);
+        board.set_piece(5, 6, Player::You, Piece::Pawn);
+        board.set_piece(6, 6, Player::You, Piece::Pawn);
+        board.set_piece(7, 6, Player::You, Piece::Pawn);
+
+        board
     }
 
     /// "Low-level" set function, that simply overrides a position with the given
