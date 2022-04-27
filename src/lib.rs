@@ -1,7 +1,10 @@
 pub mod board;
-pub use board::Board;
+pub mod info_board;
 
 mod piece;
+
+pub use board::Board;
+pub use info_board::InfoBoard;
 pub use piece::Piece;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

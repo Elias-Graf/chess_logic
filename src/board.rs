@@ -1,18 +1,10 @@
 use std::fmt::{self, Display};
 
-use crate::{Color, Piece, Player};
-
-#[derive(Clone, Debug)]
-pub enum PositionInfo {
-    Hit(PieceInstance),
-    Move,
-    None,
-    Piece(PieceInstance),
-}
+use crate::{info_board, Color, InfoBoard, Piece, Player};
 
 #[derive(Clone)]
 pub struct Board {
-    board: Vec<Vec<PositionInfo>>,
+    board: Vec<Vec<Option<PieceInstance>>>,
     height: i8,
     opponent_color: Color,
     selected_pos: Option<(i8, i8)>,
@@ -28,8 +20,8 @@ impl Board {
         const BG_BLACK: &str = "\u{001b}[40m";
         const BG_WHITE: &str = "\u{001b}[47m";
         const FG_BLACK: &str = "\u{001b}[30m";
-        const FG_PLAYER_BLACK: &str = "\u{001b}[38;5;54m";
-        const FG_PLAYER_WHITE: &str = "\u{001b}[38;5;207m";
+        // const FG_PLAYER_BLACK: &str = "\u{001b}[38;5;54m";
+        // const FG_PLAYER_WHITE: &str = "\u{001b}[38;5;207m";
         const FG_MOVE: &str = "\u{001b}[91m";
         const FG_WHITE: &str = "\u{001b}[37m";
         const RESET: &str = "\u{001b}[0m";
@@ -61,22 +53,10 @@ impl Board {
                 }
 
                 match self.get(x, y) {
-                    PositionInfo::Hit(instance) => {
+                    None => piece_symbol = "  ".to_owned(),
+                    Some(instance) => {
                         fg_color = FG_MOVE;
                         piece_symbol = Piece::get_symbol(&instance.piece);
-                    }
-                    PositionInfo::Piece(instance) => {
-                        fg_color = match self.get_color_of_player(&instance.player) {
-                            Color::Black => FG_PLAYER_BLACK,
-                            Color::White => FG_PLAYER_WHITE,
-                        };
-                        piece_symbol = Piece::get_symbol(&instance.piece);
-                    }
-                    PositionInfo::Move => {
-                        piece_symbol = "..".to_owned();
-                    }
-                    PositionInfo::None => {
-                        piece_symbol = "  ".to_owned();
                     }
                 };
 
@@ -99,7 +79,25 @@ impl Board {
         val
     }
 
-    pub fn get(&self, x: i8, y: i8) -> &PositionInfo {
+    pub fn generate_info_board(&self) -> InfoBoard {
+        let mut info_board = InfoBoard::new();
+
+        for y in 0..self.height {
+            for x in 0..self.width {
+                if let Some(instance) = self.get(x, y) {
+                    info_board.set(x, y, info_board::PosInfo::Piece(instance.clone()));
+                }
+            }
+        }
+
+        if let Some((x, y)) = self.selected_pos {
+            Piece::add_moves_for_piece_at_to_board(x, y, &mut info_board);
+        }
+
+        info_board
+    }
+
+    pub fn get(&self, x: i8, y: i8) -> &Option<PieceInstance> {
         assert!(
             self.is_in_bounds(x, y),
             "cannot get piece outside of board ({}/{})",
@@ -150,15 +148,17 @@ impl Board {
             Some(pos) => pos,
         };
 
-        let mut instance_of_piece_to_move = match self.get(piece_x, piece_y) {
-            PositionInfo::Piece(instance) => instance.clone(),
-            info => panic!("unexpected: {:?}", info),
+        let mut instance_of_piece_to_move = if let Some(instance) = self.get(piece_x, piece_y) {
+            instance.clone()
+        } else {
+            panic!("no piece found to move at position {}/{}", piece_x, piece_y);
         };
 
-        let board_with_moves = self.with_moves_for_selected();
+        let info_board = self.generate_info_board();
+
         let is_valid_move = matches!(
-            board_with_moves.get(x, y),
-            PositionInfo::Move | PositionInfo::Hit(_)
+            info_board.get(x, y),
+            info_board::PosInfo::Move | info_board::PosInfo::PieceHit(_)
         );
 
         if !is_valid_move {
@@ -167,12 +167,8 @@ impl Board {
 
         instance_of_piece_to_move.was_moved = true;
 
-        self.set(piece_x as usize, piece_y as usize, PositionInfo::None);
-        self.set(
-            x as usize,
-            y as usize,
-            PositionInfo::Piece(instance_of_piece_to_move),
-        );
+        self.set(piece_x as usize, piece_y as usize, None);
+        self.set(x as usize, y as usize, Some(instance_of_piece_to_move));
 
         self.selected_pos = None;
 
@@ -184,7 +180,7 @@ impl Board {
         let height = 8;
 
         let mut board = Self {
-            board: vec![vec![PositionInfo::None; width]; height],
+            board: vec![vec![None; width]; height],
             height: height as i8,
             opponent_color,
             selected_pos: None,
@@ -237,62 +233,8 @@ impl Board {
     ///
     /// The passed values are **not** checked for validity, e.g. if they are in
     /// the boards bounds. That burden is on the caller of this function.
-    fn set(&mut self, x: usize, y: usize, info: PositionInfo) {
+    fn set(&mut self, x: usize, y: usize, info: Option<PieceInstance>) {
         self.board[x][y] = info;
-    }
-
-    /// For a piece at a given position, set a move or a hit at a given position.
-    ///
-    /// If the position is a move or a hit will be determined depending on if an
-    /// opposing piece is present on the target position.
-    ///
-    /// Returns `true` when a piece was hit and the piece should stop adding
-    /// additional moves (at least for the current direction).
-    pub fn set_for_piece_at_move_or_hit_at(
-        &mut self,
-        piece_x: i8,
-        piece_y: i8,
-        target_x: i8,
-        target_y: i8,
-    ) -> bool {
-        assert!(
-            self.is_in_bounds(piece_x, piece_y),
-            "cannot set move for piece out of bounds ({}/{})",
-            piece_x,
-            piece_y
-        );
-        assert!(
-            self.is_in_bounds(target_x, target_y),
-            "cannot set move or hit outside bounds ({}/{})",
-            target_x,
-            target_y
-        );
-
-        let piece_pos = self.get(piece_x, piece_y);
-        let target_pos = self.get(target_x, target_y);
-
-        // TODO: refactor.
-        match target_pos {
-            PositionInfo::None => self.set(target_x as usize, target_y as usize, PositionInfo::Move),
-            PositionInfo::Piece(target_piece_instance) => {
-
-
-                if let PositionInfo::Piece(piece_instance) = piece_pos {
-                    if target_piece_instance.player == piece_instance.player {
-                        // Cannot really "hit" an own piece, thus no hit is registered.
-                        return true;
-                    }
-                }
-
-                let info = PositionInfo::Hit(target_piece_instance.clone());
-                self.set(target_x as usize, target_y as usize, info);
-
-                return true;
-            },
-            _ => panic!("moves or hits can only be set on positions that are empty or pieces are on, position was '{:?}'", target_pos),
-        }
-
-        false
     }
 
     /// Adds a new piece to the board.
@@ -309,18 +251,16 @@ impl Board {
 
         let pos = self.get(x, y);
 
-        if let PositionInfo::None = pos {
-            let instance = PieceInstance::new(player, piece);
-
-            self.set(x as usize, y as usize, PositionInfo::Piece(instance));
-
-            return;
+        if pos.is_some() {
+            panic!(
+                "pieces can only be set on empty positions, but position {}/{} was {:?}",
+                x, y, pos
+            );
         }
 
-        panic!(
-            "pieces can only be set on empty positions, but position was {:?}",
-            pos
-        );
+        let instance = PieceInstance::new(player, piece);
+
+        self.set(x as usize, y as usize, Some(instance));
     }
 
     /// Updates the piece selection.
@@ -340,40 +280,24 @@ impl Board {
             y
         );
 
-        match self.get(x, y) {
-            PositionInfo::Hit(_) => {
-                panic!("cannot select a 'hit', did you mean to `Self::move_selected_to()`?")
+        if self.get(x, y).is_none() {
+            self.selected_pos = None;
+            return;
+        }
+
+        if let Some(previous_selection) = self.selected_pos {
+            if previous_selection == (x, y) {
+                self.selected_pos = None;
+            } else {
+                self.selected_pos = Some((x, y));
             }
-            PositionInfo::Move => {
-                panic!("cannot select a 'move', did you mean to `Self::move_selected_to()`?")
-            }
-            PositionInfo::None => self.selected_pos = None,
-            PositionInfo::Piece(_) => {
-                if let Some(previous_selection) = self.selected_pos {
-                    if previous_selection == (x, y) {
-                        self.selected_pos = None;
-                    } else {
-                        self.selected_pos = Some((x, y));
-                    }
-                } else {
-                    self.selected_pos = Some((x, y));
-                }
-            }
+        } else {
+            self.selected_pos = Some((x, y));
         }
     }
 
     pub fn width(&self) -> i8 {
         return self.width;
-    }
-
-    pub fn with_moves_for_selected(&self) -> Self {
-        let mut board = self.clone();
-
-        if let Some((x, y)) = self.selected_pos {
-            Piece::add_moves_to_board_for_piece_at(x, y, &mut board);
-        }
-
-        board
     }
 }
 
