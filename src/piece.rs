@@ -172,14 +172,17 @@ impl Piece {
             1
         };
 
-        // TODO: the following statements are incorrect as the pawn can move forwards,
-        // but only hit diagonally.
-        Self::set_for_piece_at_move_or_hit_at_to_board(x, y, x, y + direction, board);
+        // TODO: implement pawn promotion
+        // TODO: implement pawn "en passant"
 
+        Self::check_and_add_pawn_move_at_position_to_board(x, y + direction, board);
         // The pawn is allowed to move two positions on it's first move.
         if !instance.was_moved {
-            Self::set_for_piece_at_move_or_hit_at_to_board(x, y, x, y + direction * 2, board);
+            Self::check_and_add_pawn_move_at_position_to_board(x, y + direction * 2, board);
         }
+
+        Self::check_and_add_pawn_hit_at_position_to_board(x - 1, y + direction, board);
+        Self::check_and_add_pawn_hit_at_position_to_board(x + 1, y + direction, board);
     }
 
     fn add_queen_moves_to_board(x: i8, y: i8, board: &mut InfoBoard) {
@@ -199,6 +202,28 @@ impl Piece {
         Self::add_moves_by_direction(x, y, Direction::East, board);
         Self::add_moves_by_direction(x, y, Direction::South, board);
         Self::add_moves_by_direction(x, y, Direction::West, board);
+    }
+
+    fn check_and_add_pawn_hit_at_position_to_board(x: i8, y: i8, board: &mut InfoBoard) {
+        if !board.is_in_bounds(x, y) {
+            return;
+        }
+
+        if let info_board::PosInfo::Piece(instance) = board.get(x, y) {
+            let instance = instance.clone();
+
+            board.set(x, y, info_board::PosInfo::PieceHit(instance));
+        }
+    }
+
+    fn check_and_add_pawn_move_at_position_to_board(x: i8, y: i8, board: &mut InfoBoard) {
+        if !board.is_in_bounds(x, y) {
+            return;
+        }
+
+        if matches!(board.get(x, y), info_board::PosInfo::None) {
+            board.set(x, y, info_board::PosInfo::Move);
+        }
     }
 
     pub fn get_symbol(piece: &Self) -> String {
