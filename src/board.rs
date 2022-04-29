@@ -7,12 +7,29 @@ pub struct Board {
     board: Vec<Vec<Option<PieceInstance>>>,
     height: i8,
     opponent_color: Color,
+    promote_pos: Option<(i8, i8)>,
     selected_pos: Option<(i8, i8)>,
     width: i8,
     you_color: Color,
 }
 
 impl Board {
+    /// Check if a given piece is a pawn, and if it reached the end of the board.
+    /// If the end of the board was reached, the position will be saved in promote
+    /// pos.
+    fn check_if_pawn_and_promote(&mut self, x: i8, y: i8) {
+        let instance = match self.get(x, y) {
+            Some(instance) => instance,
+            None => return,
+        };
+
+        let reached_end_of_board = y == 0 || y == self.height - 1;
+
+        if matches!(instance.piece, Piece::Pawn) && reached_end_of_board {
+            self.promote_pos = Some((x, y));
+        }
+    }
+
     // TODO: rework.
     // Or most likely remove / simplify. Since this isn't really meant to be displayed
     // to the user, a more rudimentary implementation should suffice.
@@ -115,6 +132,10 @@ impl Board {
         }
     }
 
+    pub fn get_promote_pos(&self) -> Option<(i8, i8)> {
+        self.promote_pos
+    }
+
     pub fn get_selected(&self) -> &Option<(i8, i8)> {
         &self.selected_pos
     }
@@ -131,6 +152,7 @@ impl Board {
         x >= 0 && x < self.width && y >= 0 && y < self.height
     }
 
+    // TODO: rework.
     /// Moves the currently selected piece to the specified position (if possible).
     /// One may select a piece using [`Self::update_selected()`].
     ///
@@ -142,6 +164,13 @@ impl Board {
             x,
             y,
         );
+
+        if let Some((promote_x, promote_y)) = self.promote_pos {
+            panic!(
+                "cannot move a piece while a promotion (at {}/{}) is outstanding",
+                promote_x, promote_y
+            );
+        }
 
         let (piece_x, piece_y) = match self.selected_pos {
             None => panic!("cannot move when no piece was selected, use `Self::update_selection()` to select a piece"),
@@ -172,6 +201,8 @@ impl Board {
 
         self.selected_pos = None;
 
+        self.check_if_pawn_and_promote(x, y);
+
         true
     }
 
@@ -183,6 +214,7 @@ impl Board {
             board: vec![vec![None; width]; height],
             height: height as i8,
             opponent_color,
+            promote_pos: None,
             selected_pos: None,
             width: width as i8,
             you_color,
@@ -226,6 +258,50 @@ impl Board {
         board.set_piece(7, 6, Player::You, Piece::Pawn);
 
         board
+    }
+
+    /// Fullfil the outstanding promotion.
+    ///
+    /// Promote a pawn that has reached the end of the board to the specified piece.
+    /// Possibilities to promote to are:
+    /// - [`Piece::Bishop`]
+    /// - [`Piece::Knight`]
+    /// - [`Piece::Queen`]
+    /// - [`Piece::Rook`]
+    pub fn promote_piece_to(&mut self, promote_to: Piece) {
+        assert!(
+            matches!(
+                promote_to,
+                Piece::Bishop | Piece::Knight | Piece::Queen | Piece::Rook,
+            ),
+            "pawn cannot be promoted to '{:?}'",
+            promote_to
+        );
+
+        let (x, y) = self
+            .promote_pos
+            .expect("cannot promote as no outstanding promotion was detected");
+
+        let instance = match self.get(x, y) {
+            Some(i) => i.clone(),
+            None => panic!("no piece to promote at {}/{}", x, y),
+        };
+
+        assert!(
+            matches!(instance.piece, Piece::Pawn),
+            "can only promote pawns but piece ({}/{}) was '{:?}'",
+            x,
+            y,
+            instance.piece
+        );
+
+        self.set(
+            x as usize,
+            y as usize,
+            Some(PieceInstance::new(instance.player, promote_to)),
+        );
+
+        self.promote_pos = None
     }
 
     /// "Low-level" set function, that simply overrides a position with the given
