@@ -18,6 +18,36 @@ impl Piece {
         Self::add_moves_by_direction(x, y, Direction::NorthWest, board);
     }
 
+    fn add_castle_moves_to_board(x: i8, y: i8, board: &mut InfoBoard) {
+        let king_instance = match board.get(x, y) {
+            info_board::PosInfo::Piece(instance) => instance,
+            info => panic!(
+                "cannot add castle moves as no piece was on the specified position ({}/{}), instead received '{:?}'",
+                x, y, info
+            ),
+        };
+
+        assert!(
+            matches!(king_instance.piece, Piece::King),
+            "can only castle with kings, specified piece ({}/{}) was '{:?}'",
+            x,
+            y,
+            king_instance.piece
+        );
+
+        if king_instance.was_moved {
+            return;
+        }
+
+        if Self::check_if_rook_can_be_castled(x, y, Direction::West, board) {
+            board.set(x - 2, y, info_board::PosInfo::Move);
+        }
+
+        if Self::check_if_rook_can_be_castled(x, y, Direction::East, board) {
+            board.set(x + 2, y, info_board::PosInfo::Move);
+        }
+    }
+
     fn add_king_moves_to_board(x: i8, y: i8, board: &mut InfoBoard) {
         Self::add_moves_by_direction_and_length(x, y, Direction::North, 1, board);
         Self::add_moves_by_direction_and_length(x, y, Direction::NorthEast, 1, board);
@@ -27,6 +57,8 @@ impl Piece {
         Self::add_moves_by_direction_and_length(x, y, Direction::SouthWest, 1, board);
         Self::add_moves_by_direction_and_length(x, y, Direction::West, 1, board);
         Self::add_moves_by_direction_and_length(x, y, Direction::NorthWest, 1, board);
+
+        Self::add_castle_moves_to_board(x, y, board);
     }
 
     fn add_knight_moves_to_board(piece_x: i8, piece_y: i8, board: &mut InfoBoard) {
@@ -172,7 +204,6 @@ impl Piece {
             1
         };
 
-        // TODO: implement pawn promotion
         // TODO: implement pawn "en passant"
 
         Self::check_and_add_pawn_move_at_position_to_board(x, y + direction, board);
@@ -224,6 +255,39 @@ impl Piece {
         if matches!(board.get(x, y), info_board::PosInfo::None) {
             board.set(x, y, info_board::PosInfo::Move);
         }
+    }
+
+    fn check_if_rook_can_be_castled(
+        king_x: i8,
+        king_y: i8,
+        direction: Direction,
+        board: &mut InfoBoard,
+    ) -> bool {
+        let (range_to_check, rook_x) = match direction {
+            Direction::East => (king_x + 1..board.width() - 1, board.width() - 1),
+            Direction::West => (1..king_x, 0),
+            _ => panic!(
+                "direction '{:?}' not valid when checking if rook can be castled",
+                direction
+            ),
+        };
+
+        let rook_instance = match board.get(rook_x, king_y) {
+            info_board::PosInfo::Piece(instance) => instance,
+            _ => return false,
+        };
+
+        if rook_instance.was_moved {
+            return false;
+        }
+
+        for i in range_to_check {
+            if let info_board::PosInfo::Piece(_) = board.get(i, king_y) {
+                return false;
+            }
+        }
+
+        true
     }
 
     pub fn get_symbol(piece: &Self) -> String {
@@ -293,6 +357,7 @@ impl Piece {
     }
 }
 
+#[derive(Debug)]
 enum Direction {
     North,
     NorthEast,

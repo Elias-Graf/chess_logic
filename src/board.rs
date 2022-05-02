@@ -17,7 +17,7 @@ impl Board {
     /// Check if a given piece is a pawn, and if it reached the end of the board.
     /// If the end of the board was reached, the position will be saved in promote
     /// pos.
-    fn check_if_pawn_and_promote(&mut self, x: i8, y: i8) {
+    fn check_if_pawn_needs_promoting(&mut self, x: i8, y: i8) {
         let instance = match self.get(x, y) {
             Some(instance) => instance,
             None => return,
@@ -152,6 +152,22 @@ impl Board {
         x >= 0 && x < self.width && y >= 0 && y < self.height
     }
 
+    fn move_rook_for_castle(&mut self, king_x_from: i8, king_x_to: i8, king_y: i8) {
+        let (rook_x_from, rook_x_to) = if king_x_from - king_x_to < 0 {
+            (self.width - 1, king_x_from + 1)
+        } else {
+            (0, king_x_from - 1)
+        };
+
+        let rook_instance = match self.get(rook_x_from, king_y) {
+            Some(rook_instance) => rook_instance.clone(),
+            _ => panic!("this function should not be called if no rook is at the castle location"),
+        };
+
+        self.set(rook_x_from as usize, king_y as usize, None);
+        self.set(rook_x_to as usize, king_y as usize, Some(rook_instance));
+    }
+
     // TODO: rework.
     /// Moves the currently selected piece to the specified position (if possible).
     /// One may select a piece using [`Self::update_selected()`].
@@ -196,12 +212,19 @@ impl Board {
 
         instance_of_piece_to_move.was_moved = true;
 
+        let move_is_castle =
+            matches!(instance_of_piece_to_move.piece, Piece::King) && (x - piece_x).abs() == 2;
+
         self.set(piece_x as usize, piece_y as usize, None);
         self.set(x as usize, y as usize, Some(instance_of_piece_to_move));
 
         self.selected_pos = None;
 
-        self.check_if_pawn_and_promote(x, y);
+        self.check_if_pawn_needs_promoting(x, y);
+
+        if move_is_castle {
+            self.move_rook_for_castle(piece_x, x, piece_y);
+        }
 
         true
     }
@@ -309,8 +332,8 @@ impl Board {
     ///
     /// The passed values are **not** checked for validity, e.g. if they are in
     /// the boards bounds. That burden is on the caller of this function.
-    fn set(&mut self, x: usize, y: usize, info: Option<PieceInstance>) {
-        self.board[x][y] = info;
+    fn set(&mut self, x: usize, y: usize, instance: Option<PieceInstance>) {
+        self.board[x][y] = instance;
     }
 
     /// Adds a new piece to the board.
