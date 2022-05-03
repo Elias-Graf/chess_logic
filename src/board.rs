@@ -30,52 +30,17 @@ impl Board {
         }
     }
 
-    // TODO: rework.
-    // Or most likely remove / simplify. Since this isn't really meant to be displayed
-    // to the user, a more rudimentary implementation should suffice.
     pub fn display(&self) -> String {
-        const BG_BLACK: &str = "\u{001b}[40m";
-        const BG_WHITE: &str = "\u{001b}[47m";
-        const FG_BLACK: &str = "\u{001b}[30m";
-        // const FG_PLAYER_BLACK: &str = "\u{001b}[38;5;54m";
-        // const FG_PLAYER_WHITE: &str = "\u{001b}[38;5;207m";
-        const FG_MOVE: &str = "\u{001b}[91m";
-        const FG_WHITE: &str = "\u{001b}[37m";
         const RESET: &str = "\u{001b}[0m";
 
-        let mut val = "  ".to_owned();
-
-        for letter in 'a'..'i' {
-            val.push_str(&format!(" {}  ", letter));
-        }
-
-        val.push('\n');
+        let mut val = "\n".to_owned();
 
         for y in 0..self.height {
-            // print the inverse, since the numbering of the squares starts at
-            // "the bottom", and the array starts "at the top".
-            val.push_str(&format!("{} ", self.height - y));
-
             for x in 0..self.height {
-                let piece_symbol: String;
-                let mut bg_color: &str = BG_BLACK;
-                let mut fg_color: &str = FG_WHITE;
-
-                let is_even_row = y % 2 == 0;
-                let is_even_column = x % 2 == 0;
-
-                if is_even_row && is_even_column || !is_even_row && !is_even_column {
-                    bg_color = BG_WHITE;
-                    fg_color = FG_BLACK;
-                }
-
-                match self.get(x, y) {
-                    None => piece_symbol = "  ".to_owned(),
-                    Some(instance) => {
-                        fg_color = FG_MOVE;
-                        piece_symbol = Piece::get_symbol(&instance.piece);
-                    }
-                };
+                let piece_ins = self.get(x, y).as_ref();
+                let bg_color = self.get_display_square_bg_color(x, y);
+                let fg_color = self.get_display_fg_color_for_piece_instance(piece_ins);
+                let piece_symbol = self.get_display_symbol_for_piece_instance(piece_ins);
 
                 val.push_str(&format!(
                     "{}{} {} {}",
@@ -83,14 +48,7 @@ impl Board {
                 ));
             }
 
-            val.push_str(&format!(" {}", self.height - y));
             val.push('\n');
-        }
-
-        val.push_str("  ");
-
-        for letter in 'a'..'i' {
-            val.push_str(&format!(" {}  ", letter));
         }
 
         val
@@ -130,6 +88,43 @@ impl Board {
             Player::Opponent => &self.opponent_color,
             Player::You => &self.you_color,
         }
+    }
+
+    fn get_display_fg_color_for_piece_instance(&self, instance: Option<&PieceInstance>) -> &str {
+        const FG_BLACK: &str = "\u{001b}[38;5;0m";
+        const FG_WHITE: &str = "\u{001b}[38;5;15m";
+
+        if let Some(instance) = instance {
+            return if matches!(self.get_color_of_player(&instance.player), Color::Black) {
+                FG_BLACK
+            } else {
+                FG_WHITE
+            };
+        }
+
+        ""
+    }
+
+    fn get_display_square_bg_color(&self, x: i8, y: i8) -> &str {
+        const BG_BLACK: &str = "\u{001b}[48;5;126m";
+        const BG_WHITE: &str = "\u{001b}[48;5;145m";
+
+        let is_even_row = y % 2 == 0;
+        let is_even_column = x % 2 == 0;
+
+        if is_even_row && is_even_column || !is_even_row && !is_even_column {
+            return BG_WHITE;
+        }
+
+        BG_BLACK
+    }
+
+    fn get_display_symbol_for_piece_instance(&self, instance: Option<&PieceInstance>) -> String {
+        if let Some(instance) = instance {
+            return Piece::get_symbol(&instance.piece);
+        }
+
+        "  ".to_owned()
     }
 
     pub fn get_promote_pos(&self) -> Option<(i8, i8)> {
