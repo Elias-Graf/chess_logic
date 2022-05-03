@@ -208,7 +208,8 @@ impl Piece {
 
         Self::check_and_add_pawn_move_at_position_to_board(x, y + direction, board);
         // The pawn is allowed to move two positions on it's first move.
-        if !instance.was_moved {
+        // The pawn can't "jump" over a pice, thus the first square needs to be free (movable to).
+        if !instance.was_moved && matches!(board.get(x, y + direction), info_board::PosInfo::Move) {
             Self::check_and_add_pawn_move_at_position_to_board(x, y + direction * 2, board);
         }
 
