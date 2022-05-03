@@ -85,7 +85,7 @@ impl Piece {
             .filter(|&(x, y)| x >= 0 && y >= 0 && x < board_width && y < board_height);
 
         for (target_x, target_y) in abs_moves {
-            let piece_was_hit = Self::set_for_piece_at_move_or_hit_at_to_board(
+            let piece_was_hit = Self::set_for_piece_at_move_or_hit_at_in_board(
                 piece_x, piece_y, target_x, target_y, board,
             );
 
@@ -158,7 +158,7 @@ impl Piece {
                 break;
             }
 
-            let piece_was_hit = Self::set_for_piece_at_move_or_hit_at_to_board(
+            let piece_was_hit = Self::set_for_piece_at_move_or_hit_at_in_board(
                 piece_x, piece_y, target_x, target_y, board,
             );
 
@@ -323,18 +323,18 @@ impl Piece {
     ///
     /// Returns `true` when a piece was hit. In that case, the piece should "stop"
     /// adding further moves in that direction.
-    fn set_for_piece_at_move_or_hit_at_to_board(
-        piece_x: i8,
-        piece_y: i8,
+    fn set_for_piece_at_move_or_hit_at_in_board(
+        orig_x: i8,
+        orig_y: i8,
         target_x: i8,
         target_y: i8,
         board: &mut InfoBoard,
     ) -> bool {
         assert!(
-            board.is_in_bounds(piece_x, piece_y),
+            board.is_in_bounds(orig_x, orig_y),
             "cannot set move for piece out of bounds ({}/{})",
-            piece_x,
-            piece_y
+            orig_x,
+            orig_y
         );
         assert!(
             board.is_in_bounds(target_x, target_y),
@@ -343,31 +343,31 @@ impl Piece {
             target_y
         );
 
-        let piece_pos = board.get(piece_x, piece_y);
         let target_pos = board.get(target_x, target_y);
 
-        // TODO: refactor.
-        match target_pos {
-            info_board::PosInfo::None => board.set(target_x, target_y , info_board::PosInfo::Move),
-            info_board::PosInfo::Piece(target_piece_instance) => {
-
-
-                if let info_board::PosInfo::Piece(piece_instance) = piece_pos {
-                    if target_piece_instance.player == piece_instance.player {
-                        // Cannot really "hit" an own piece, thus no hit is registered.
-                        return true;
-                    }
-                }
-
-                let info = info_board::PosInfo::PieceHit(target_piece_instance.clone());
-                board.set(target_x, target_y, info);
-
-                return true;
+        let target_ins = match target_pos {
+            info_board::PosInfo::None => {
+                board.set(target_x, target_y , info_board::PosInfo::Move);
+                return false;
             },
+            info_board::PosInfo::Piece(i) => i,
             _ => panic!("moves or hits can only be set on positions that are empty or pieces are on, position was '{:?}'", target_pos),
+        };
+
+        let origin_ins = match board.get(orig_x, orig_y) {
+            info_board::PosInfo::Piece(i) => i,
+            info => panic!(
+                "there is no origin piece at position: {}/{}, info is: '{:?}'",
+                orig_x, orig_y, info
+            ),
+        };
+
+        if target_ins.player != origin_ins.player {
+            let info = info_board::PosInfo::PieceHit(target_ins.clone());
+            board.set(target_x, target_y, info);
         }
 
-        false
+        return true;
     }
 }
 
