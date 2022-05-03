@@ -1,4 +1,7 @@
-use crate::{board, info_board, InfoBoard, Player};
+use crate::{
+    board::{self, PieceInstance},
+    info_board, InfoBoard, Player,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Piece {
@@ -213,8 +216,8 @@ impl Piece {
             Self::check_and_add_pawn_move_at_position_to_board(x, y + direction * 2, board);
         }
 
-        Self::check_and_add_pawn_hit_at_position_to_board(x - 1, y + direction, board);
-        Self::check_and_add_pawn_hit_at_position_to_board(x + 1, y + direction, board);
+        Self::check_and_add_pawn_hit_at_position_to_board(&instance, x - 1, y + direction, board);
+        Self::check_and_add_pawn_hit_at_position_to_board(&instance, x + 1, y + direction, board);
     }
 
     fn add_queen_moves_to_board(x: i8, y: i8, board: &mut InfoBoard) {
@@ -236,13 +239,23 @@ impl Piece {
         Self::add_moves_by_direction(x, y, Direction::West, board);
     }
 
-    fn check_and_add_pawn_hit_at_position_to_board(x: i8, y: i8, board: &mut InfoBoard) {
+    /// * `orig_ins` - The originating instance of the hit.
+    fn check_and_add_pawn_hit_at_position_to_board(
+        orig_ins: &PieceInstance,
+        x: i8,
+        y: i8,
+        board: &mut InfoBoard,
+    ) {
         if !board.is_in_bounds(x, y) {
             return;
         }
 
-        if let info_board::PosInfo::Piece(instance) = board.get(x, y) {
-            let instance = instance.clone();
+        if let info_board::PosInfo::Piece(target_ins) = board.get(x, y) {
+            if orig_ins.player == target_ins.player {
+                return;
+            }
+
+            let instance = target_ins.clone();
 
             board.set(x, y, info_board::PosInfo::PieceHit(instance));
         }
