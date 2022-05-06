@@ -21,20 +21,22 @@ impl Piece {
         Self::add_moves_by_direction(x, y, Direction::NorthWest, board);
     }
 
-    fn add_castle_moves_to_board(x: i8, y: i8, board: &mut InfoBoard) {
-        let king_instance = match board.get(x, y) {
+    fn add_castle_moves_to_board(king_x: i8, king_y: i8, board: &mut InfoBoard) {
+        let king_instance = match board.get(king_x, king_y) {
             info_board::PosInfo::Piece(instance) => instance,
+            // Castle is not allowed when the king is in check.
+            info_board::PosInfo::PieceHit(_) => return,
             info => panic!(
                 "cannot add castle moves as no piece was on the specified position ({}/{}), instead received '{:?}'",
-                x, y, info
+                king_x, king_y, info
             ),
         };
 
         assert!(
             matches!(king_instance.piece, Piece::King),
             "can only castle with kings, specified piece ({}/{}) was '{:?}'",
-            x,
-            y,
+            king_x,
+            king_y,
             king_instance.piece
         );
 
@@ -42,12 +44,12 @@ impl Piece {
             return;
         }
 
-        if Self::check_if_rook_can_be_castled(x, y, Direction::West, board) {
-            board.set(x - 2, y, info_board::PosInfo::Move);
+        if Self::check_if_rook_can_be_castled(king_x, king_y, Direction::West, board) {
+            board.set(king_x - 2, king_y, info_board::PosInfo::Move);
         }
 
-        if Self::check_if_rook_can_be_castled(x, y, Direction::East, board) {
-            board.set(x + 2, y, info_board::PosInfo::Move);
+        if Self::check_if_rook_can_be_castled(king_x, king_y, Direction::East, board) {
+            board.set(king_x + 2, king_y, info_board::PosInfo::Move);
         }
     }
 
@@ -177,8 +179,9 @@ impl Piece {
         );
 
         let instance = match board.get(x, y) {
-            info_board::PosInfo::Piece(piece) => piece.clone(),
-            info_board::PosInfo::None => return,
+            info_board::PosInfo::Piece(piece) | info_board::PosInfo::PieceHit(piece) => {
+                piece.clone()
+            }
             info => panic!(
                 "can only add moves for pieces, but piece at position {}/{} was {:?}",
                 x, y, info
@@ -346,16 +349,17 @@ impl Piece {
         let target_pos = board.get(target_x, target_y);
 
         let target_ins = match target_pos {
+            info_board::PosInfo::Move => return false,
             info_board::PosInfo::None => {
-                board.set(target_x, target_y , info_board::PosInfo::Move);
+                board.set(target_x, target_y, info_board::PosInfo::Move);
                 return false;
-            },
+            }
             info_board::PosInfo::Piece(i) => i,
-            _ => panic!("moves or hits can only be set on positions that are empty or pieces are on, position was '{:?}'", target_pos),
+            info_board::PosInfo::PieceHit(_) => return false,
         };
 
         let origin_ins = match board.get(orig_x, orig_y) {
-            info_board::PosInfo::Piece(i) => i,
+            info_board::PosInfo::Piece(i) | info_board::PosInfo::PieceHit(i) => i,
             info => panic!(
                 "there is no origin piece at position: {}/{}, info is: '{:?}'",
                 orig_x, orig_y, info
