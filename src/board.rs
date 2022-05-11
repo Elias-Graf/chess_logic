@@ -33,31 +33,6 @@ impl Board {
         }
     }
 
-    // TODO: consider moving this into the [`std::fmt::Display`] trait implementation.
-    fn display(&self) -> String {
-        const RESET: &str = "\u{001b}[0m";
-
-        let mut val = "\n".to_owned();
-
-        for y in 0..self.height {
-            for x in 0..self.height {
-                let piece_ins = self.get(x, y).as_ref();
-                let bg_color = self.get_display_square_bg_color(x, y);
-                let fg_color = self.get_display_fg_color_for_piece_instance(piece_ins);
-                let piece_symbol = self.get_display_symbol_for_piece_instance(piece_ins);
-
-                val.push_str(&format!(
-                    "{}{} {} {}",
-                    fg_color, bg_color, piece_symbol, RESET
-                ));
-            }
-
-            val.push('\n');
-        }
-
-        val
-    }
-
     pub fn get(&self, x: i8, y: i8) -> &Option<PieceInstance> {
         assert!(
             self.is_in_bounds(x, y),
@@ -593,7 +568,27 @@ impl Iterator for PosInter {
 
 impl Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.display())
+        const RESET: &str = "\u{001b}[0m";
+
+        let mut val = "\n".to_owned();
+
+        for y in 0..self.height {
+            for x in 0..self.height {
+                let piece_ins = self.get(x, y).as_ref();
+                let bg_color = self.get_display_square_bg_color(x, y);
+                let fg_color = self.get_display_fg_color_for_piece_instance(piece_ins);
+                let piece_symbol = self.get_display_symbol_for_piece_instance(piece_ins);
+
+                val.push_str(&format!(
+                    "{}{} {} {}",
+                    fg_color, bg_color, piece_symbol, RESET
+                ));
+            }
+
+            val.push('\n');
+        }
+
+        write!(f, "{}", val)
     }
 }
 
