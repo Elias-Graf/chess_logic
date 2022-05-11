@@ -91,32 +91,35 @@ impl Board {
     pub fn get_moves_of_selected(&self) -> InfoBoard {
         let mut info_board: InfoBoard = self.into();
 
-        // TODO: Should probably panic if nothing is selected.
-        if let Some((x, y)) = self.selected_pos {
-            Piece::add_moves_for_piece_at_to_board(x, y, &mut info_board);
+        let (x, y) = match self.selected_pos {
+            Some(pos) => pos,
+            None => panic!("cannot get moves of selected as nothing was selected"),
+        };
 
-            if let Some(ins) = self.get(x, y) {
-                if ins.is_eligible_for_en_passant {
-                    let dir = Piece::get_pawn_direction(ins);
+        Piece::add_moves_for_piece_at_to_board(x, y, &mut info_board);
 
-                    let east_x = x + 1;
-                    if self.is_in_bounds(east_x, y)
-                        && matches!(info_board.get(east_x, y), PosInfo::Piece(_))
-                    {
-                        info_board.set(east_x, y + dir, PosInfo::Move);
-                    }
+        if let Some(ins) = self.get(x, y) {
+            // TODO: refactor
+            if ins.is_eligible_for_en_passant {
+                let dir = Piece::get_pawn_direction(ins);
 
-                    let west_x = x - 1;
-                    if self.is_in_bounds(west_x, y)
-                        && matches!(info_board.get(west_x, y), PosInfo::Piece(_))
-                    {
-                        info_board.set(west_x, y + dir, PosInfo::Move);
-                    }
+                let east_x = x + 1;
+                if self.is_in_bounds(east_x, y)
+                    && matches!(info_board.get(east_x, y), PosInfo::Piece(_))
+                {
+                    info_board.set(east_x, y + dir, PosInfo::Move);
+                }
+
+                let west_x = x - 1;
+                if self.is_in_bounds(west_x, y)
+                    && matches!(info_board.get(west_x, y), PosInfo::Piece(_))
+                {
+                    info_board.set(west_x, y + dir, PosInfo::Move);
                 }
             }
-
-            self.remove_moves_that_result_in_check(x, y, &mut info_board);
         }
+
+        self.remove_moves_that_result_in_check(x, y, &mut info_board);
 
         info_board
     }
