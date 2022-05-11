@@ -192,35 +192,42 @@ impl Piece {
             Self::Bishop => Self::add_bishop_moves_to_board(x, y, board),
             Self::King => Self::add_king_moves_to_board(x, y, board),
             Self::Knight => Self::add_knight_moves_to_board(x, y, board),
-            Self::Pawn => Self::add_pawn_moves_to_board(x, y, instance, board),
+            Self::Pawn => Self::add_pawn_moves_to_board(x, y, &instance, board),
             Self::Queen => Self::add_queen_moves_to_board(x, y, board),
             Self::Rook => Self::add_rook_moves_to_board(x, y, board),
+        }
+    }
+
+    // TODO: This is not at the right place. Check if this can be moved somewhere
+    // else.
+    // As stated in the comment bellow, this will break as soon as `you` is not at
+    // the bottom of the board. Thus this should probably be inside the [`Board`].
+    pub fn get_pawn_direction(ins: &board::PieceInstance) -> i8 {
+        // Currently it is assumed that you are at the bottom of the board.
+        // In case this assumption is false in the future, this code WILL not work.
+        match ins.player {
+            Player::You => -1,
+            Player::Opponent => 1,
         }
     }
 
     fn add_pawn_moves_to_board(
         x: i8,
         y: i8,
-        instance: board::PieceInstance,
+        ins: &board::PieceInstance,
         board: &mut InfoBoard,
     ) {
-        let direction = if instance.player == Player::You {
-            -1
-        } else {
-            1
-        };
-
-        // TODO: implement pawn "en passant"
+        let direction = Self::get_pawn_direction(ins);
 
         Self::check_and_add_pawn_move_at_position_to_board(x, y + direction, board);
         // The pawn is allowed to move two positions on it's first move.
         // The pawn can't "jump" over a pice, thus the first square needs to be free (movable to).
-        if !instance.was_moved && matches!(board.get(x, y + direction), info_board::PosInfo::Move) {
+        if !ins.was_moved && matches!(board.get(x, y + direction), info_board::PosInfo::Move) {
             Self::check_and_add_pawn_move_at_position_to_board(x, y + direction * 2, board);
         }
 
-        Self::check_and_add_pawn_hit_at_position_to_board(&instance, x - 1, y + direction, board);
-        Self::check_and_add_pawn_hit_at_position_to_board(&instance, x + 1, y + direction, board);
+        Self::check_and_add_pawn_hit_at_position_to_board(&ins, x - 1, y + direction, board);
+        Self::check_and_add_pawn_hit_at_position_to_board(&ins, x + 1, y + direction, board);
     }
 
     fn add_queen_moves_to_board(x: i8, y: i8, board: &mut InfoBoard) {

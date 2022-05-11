@@ -20,6 +20,7 @@ pub enum PosInfo {
 /// Contains information (**no** logic) about each position on the board.
 ///
 /// Can be useful for displaying it, figuring out what moves are valid, etc.
+// TODO: add the color information of the players.
 #[derive(Debug)]
 pub struct InfoBoard {
     board: Vec<Vec<PosInfo>>,
@@ -105,11 +106,9 @@ impl From<&Board> for InfoBoard {
     fn from(board: &Board) -> Self {
         let mut info_board = InfoBoard::new();
 
-        for y in 0..board.height() {
-            for x in 0..board.width() {
-                if let Some(ins) = board.get(x, y) {
-                    info_board.set(x, y, PosInfo::Piece(ins.clone()));
-                }
+        for (x, y) in board.iter_over_positions() {
+            if let Some(ins) = board.get(x, y) {
+                info_board.set(x, y, PosInfo::Piece(ins.clone()));
             }
         }
 
