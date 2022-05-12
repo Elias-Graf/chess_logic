@@ -340,41 +340,105 @@ impl Board {
         let mut board = Self::new(you_color, opponent_color);
 
         // Standard chess formation:
-        board.set_piece(0, 0, Player::Opponent, Piece::Rook);
-        board.set_piece(1, 0, Player::Opponent, Piece::Knight);
-        board.set_piece(2, 0, Player::Opponent, Piece::Bishop);
-        board.set_piece(3, 0, Player::Opponent, Piece::Queen);
-        board.set_piece(4, 0, Player::Opponent, Piece::King);
-        board.set_piece(5, 0, Player::Opponent, Piece::Bishop);
-        board.set_piece(6, 0, Player::Opponent, Piece::Knight);
-        board.set_piece(7, 0, Player::Opponent, Piece::Rook);
+        board.set(
+            0,
+            0,
+            Some(PieceInstance::new(Player::Opponent, Piece::Rook)),
+        );
+        board.set(
+            1,
+            0,
+            Some(PieceInstance::new(Player::Opponent, Piece::Knight)),
+        );
+        board.set(
+            2,
+            0,
+            Some(PieceInstance::new(Player::Opponent, Piece::Bishop)),
+        );
+        board.set(
+            3,
+            0,
+            Some(PieceInstance::new(Player::Opponent, Piece::Queen)),
+        );
+        board.set(
+            4,
+            0,
+            Some(PieceInstance::new(Player::Opponent, Piece::King)),
+        );
+        board.set(
+            5,
+            0,
+            Some(PieceInstance::new(Player::Opponent, Piece::Bishop)),
+        );
+        board.set(
+            6,
+            0,
+            Some(PieceInstance::new(Player::Opponent, Piece::Knight)),
+        );
+        board.set(
+            7,
+            0,
+            Some(PieceInstance::new(Player::Opponent, Piece::Rook)),
+        );
 
-        board.set_piece(0, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(1, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(2, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(3, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(4, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(5, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(6, 1, Player::Opponent, Piece::Pawn);
-        board.set_piece(7, 1, Player::Opponent, Piece::Pawn);
+        board.set(
+            0,
+            1,
+            Some(PieceInstance::new(Player::Opponent, Piece::Pawn)),
+        );
+        board.set(
+            1,
+            1,
+            Some(PieceInstance::new(Player::Opponent, Piece::Pawn)),
+        );
+        board.set(
+            2,
+            1,
+            Some(PieceInstance::new(Player::Opponent, Piece::Pawn)),
+        );
+        board.set(
+            3,
+            1,
+            Some(PieceInstance::new(Player::Opponent, Piece::Pawn)),
+        );
+        board.set(
+            4,
+            1,
+            Some(PieceInstance::new(Player::Opponent, Piece::Pawn)),
+        );
+        board.set(
+            5,
+            1,
+            Some(PieceInstance::new(Player::Opponent, Piece::Pawn)),
+        );
+        board.set(
+            6,
+            1,
+            Some(PieceInstance::new(Player::Opponent, Piece::Pawn)),
+        );
+        board.set(
+            7,
+            1,
+            Some(PieceInstance::new(Player::Opponent, Piece::Pawn)),
+        );
 
-        board.set_piece(0, 7, Player::You, Piece::Rook);
-        board.set_piece(1, 7, Player::You, Piece::Knight);
-        board.set_piece(2, 7, Player::You, Piece::Bishop);
-        board.set_piece(3, 7, Player::You, Piece::Queen);
-        board.set_piece(4, 7, Player::You, Piece::King);
-        board.set_piece(5, 7, Player::You, Piece::Bishop);
-        board.set_piece(6, 7, Player::You, Piece::Knight);
-        board.set_piece(7, 7, Player::You, Piece::Rook);
+        board.set(0, 7, Some(PieceInstance::new(Player::You, Piece::Rook)));
+        board.set(1, 7, Some(PieceInstance::new(Player::You, Piece::Knight)));
+        board.set(2, 7, Some(PieceInstance::new(Player::You, Piece::Bishop)));
+        board.set(3, 7, Some(PieceInstance::new(Player::You, Piece::Queen)));
+        board.set(4, 7, Some(PieceInstance::new(Player::You, Piece::King)));
+        board.set(5, 7, Some(PieceInstance::new(Player::You, Piece::Bishop)));
+        board.set(6, 7, Some(PieceInstance::new(Player::You, Piece::Knight)));
+        board.set(7, 7, Some(PieceInstance::new(Player::You, Piece::Rook)));
 
-        board.set_piece(0, 6, Player::You, Piece::Pawn);
-        board.set_piece(1, 6, Player::You, Piece::Pawn);
-        board.set_piece(2, 6, Player::You, Piece::Pawn);
-        board.set_piece(3, 6, Player::You, Piece::Pawn);
-        board.set_piece(4, 6, Player::You, Piece::Pawn);
-        board.set_piece(5, 6, Player::You, Piece::Pawn);
-        board.set_piece(6, 6, Player::You, Piece::Pawn);
-        board.set_piece(7, 6, Player::You, Piece::Pawn);
+        board.set(0, 6, Some(PieceInstance::new(Player::You, Piece::Pawn)));
+        board.set(1, 6, Some(PieceInstance::new(Player::You, Piece::Pawn)));
+        board.set(2, 6, Some(PieceInstance::new(Player::You, Piece::Pawn)));
+        board.set(3, 6, Some(PieceInstance::new(Player::You, Piece::Pawn)));
+        board.set(4, 6, Some(PieceInstance::new(Player::You, Piece::Pawn)));
+        board.set(5, 6, Some(PieceInstance::new(Player::You, Piece::Pawn)));
+        board.set(6, 6, Some(PieceInstance::new(Player::You, Piece::Pawn)));
+        board.set(7, 6, Some(PieceInstance::new(Player::You, Piece::Pawn)));
 
         board
     }
@@ -462,35 +526,6 @@ impl Board {
         );
 
         self.board[x as usize][y as usize] = instance;
-    }
-
-    /// Adds a new piece to the board.
-    ///
-    /// Creates and adds a completely new piece to the board. New pieces can only
-    /// be added to empty positions.
-    // TODO: remove method, just move `set` instead. Actually setting a piece should
-    // not be common anyway.
-    // The todo of `set` should be done first though.
-    pub fn set_piece(&mut self, x: i8, y: i8, player: Player, piece: Piece) {
-        assert!(
-            self.is_in_bounds(x, y),
-            "cannot set piece at out of bounds position ({}/{})",
-            x,
-            y
-        );
-
-        let pos = self.get(x, y);
-
-        if pos.is_some() {
-            panic!(
-                "pieces can only be set on empty positions, but position {}/{} was {:?}",
-                x, y, pos
-            );
-        }
-
-        let instance = PieceInstance::new(player, piece);
-
-        self.set(x, y, Some(instance));
     }
 
     pub fn set_selected(&mut self, sel_x: i8, sel_y: i8) {
