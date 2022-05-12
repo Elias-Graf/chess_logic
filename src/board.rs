@@ -9,11 +9,11 @@ use crate::{
 pub struct Board {
     board: Vec<Vec<Option<PieceInstance>>>,
     height: i8,
-    opponent_color: Color,
+    pub opponent_color: Color,
     promote_pos: Option<(i8, i8)>,
     selected_pos: Option<(i8, i8)>,
     width: i8,
-    you_color: Color,
+    pub you_color: Color,
 }
 
 impl Board {

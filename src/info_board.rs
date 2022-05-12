@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{board::PieceInstance, Board, Piece};
+use crate::{board::PieceInstance, Board, Color, Piece, Player};
 
 /// Information on individual positions on the board.
 #[derive(Clone, Debug)]
@@ -20,12 +20,13 @@ pub enum PosInfo {
 /// Contains information (**no** logic) about each position on the board.
 ///
 /// Can be useful for displaying it, figuring out what moves are valid, etc.
-// TODO: add the color information of the players.
 #[derive(Debug)]
 pub struct InfoBoard {
     board: Vec<Vec<PosInfo>>,
     height: i8,
+    opponent_color: Color,
     width: i8,
+    you_color: Color,
 }
 
 impl InfoBoard {
@@ -38,6 +39,27 @@ impl InfoBoard {
         );
 
         &self.board[y as usize][x as usize]
+    }
+
+    fn get_color_of(&self, player: &Player) -> &Color {
+        match player {
+            Player::You => &self.you_color,
+            Player::Opponent => &self.opponent_color,
+        }
+    }
+
+    fn get_display_fg_color_for(&self, pos: &PosInfo) -> &str {
+        const FG_BLACK: &str = "\u{001b}[38;5;0m";
+        const FG_WHITE: &str = "\u{001b}[38;5;15m";
+
+        match pos {
+            PosInfo::Piece(ins) => match self.get_color_of(&ins.player) {
+                Color::Black => FG_BLACK,
+                Color::White => FG_WHITE,
+            },
+            PosInfo::PieceHit(_) => todo!(),
+            _ => "",
+        }
     }
 
     fn get_display_square_bg_color(&self, x: i8, y: i8) -> &str {
@@ -54,8 +76,8 @@ impl InfoBoard {
         BG_BLACK
     }
 
-    fn get_display_symbol_for_piece_instance(&self, info: &PosInfo) -> String {
-        match info {
+    fn get_display_symbol_for(&self, pos: &PosInfo) -> String {
+        match pos {
             PosInfo::Move => "*".to_owned(),
             PosInfo::None => "".to_owned(),
             PosInfo::Piece(i) => Piece::get_symbol(&i.piece),
@@ -75,14 +97,16 @@ impl InfoBoard {
         x >= 0 && x < self.width && y >= 0 && y < self.height
     }
 
-    pub fn new() -> Self {
+    pub fn new(you_color: Color, opponent_color: Color) -> Self {
         let height = 8;
         let width = 8;
 
         Self {
             board: vec![vec![PosInfo::None; width]; height],
             height: height as i8,
+            opponent_color,
             width: width as i8,
+            you_color,
         }
     }
 
@@ -104,7 +128,7 @@ impl InfoBoard {
 
 impl From<&Board> for InfoBoard {
     fn from(board: &Board) -> Self {
-        let mut info_board = InfoBoard::new();
+        let mut info_board = InfoBoard::new(board.you_color.clone(), board.opponent_color.clone());
 
         for (x, y) in board.iter_over_positions() {
             if let Some(ins) = board.get(x, y) {
@@ -119,19 +143,19 @@ impl From<&Board> for InfoBoard {
 impl fmt::Display for InfoBoard {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         const RESET: &str = "\u{001b}[0m";
-        const FG_BLACK: &str = "\u{001b}[38;5;0m";
 
         let mut val = "\n".to_owned();
 
         for y in 0..self.height {
             for x in 0..self.height {
-                let piece_ins = self.get(x, y);
+                let pos = self.get(x, y);
                 let bg_color = self.get_display_square_bg_color(x, y);
-                let piece_symbol = self.get_display_symbol_for_piece_instance(piece_ins);
+                let fg_color = self.get_display_fg_color_for(pos);
+                let piece_symbol = self.get_display_symbol_for(pos);
 
                 val.push_str(&format!(
                     "{}{}{: ^4}{}",
-                    FG_BLACK, bg_color, piece_symbol, RESET
+                    fg_color, bg_color, piece_symbol, RESET
                 ));
             }
 
