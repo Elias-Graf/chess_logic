@@ -128,7 +128,9 @@ impl InfoBoard {
 
 impl From<&Board> for InfoBoard {
     fn from(board: &Board) -> Self {
-        let mut info_board = InfoBoard::new(board.you_color.clone(), board.opponent_color.clone());
+        let you_color = board.get_color_of_player(&Player::You).clone();
+        let opponent_color = board.get_color_of_player(&Player::Opponent).clone();
+        let mut info_board = InfoBoard::new(you_color, opponent_color);
 
         for (x, y) in board.iter_over_positions() {
             if let Some(ins) = board.get(x, y) {
