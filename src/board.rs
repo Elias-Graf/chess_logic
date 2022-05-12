@@ -99,23 +99,8 @@ impl Board {
         Piece::add_moves_for_piece_at_to_board(x, y, &mut info_board);
 
         if let Some(ins) = self.get(x, y) {
-            // TODO: refactor
             if ins.is_eligible_for_en_passant {
-                let dir = Piece::get_pawn_direction(ins);
-
-                let east_x = x + 1;
-                if self.is_in_bounds(east_x, y)
-                    && matches!(info_board.get(east_x, y), PosInfo::Piece(_))
-                {
-                    info_board.set(east_x, y + dir, PosInfo::Move);
-                }
-
-                let west_x = x - 1;
-                if self.is_in_bounds(west_x, y)
-                    && matches!(info_board.get(west_x, y), PosInfo::Piece(_))
-                {
-                    info_board.set(west_x, y + dir, PosInfo::Move);
-                }
+                Piece::add_en_passant_moves_to_board(x, y, ins, &mut info_board);
             }
         }
 

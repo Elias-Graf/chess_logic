@@ -1,6 +1,7 @@
 use crate::{
     board::{self, PieceInstance},
-    info_board, InfoBoard, Player,
+    info_board::{self, PosInfo},
+    InfoBoard, Player,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -50,6 +51,29 @@ impl Piece {
 
         if Self::check_if_rook_can_be_castled(king_x, king_y, Direction::East, board) {
             board.set(king_x + 2, king_y, info_board::PosInfo::Move);
+        }
+    }
+
+    pub fn add_en_passant_moves_to_board(
+        piece_x: i8,
+        piece_y: i8,
+        ins: &PieceInstance,
+        board: &mut InfoBoard,
+    ) {
+        let dir = Piece::get_pawn_direction(ins);
+
+        let east_x = piece_x + 1;
+        if board.is_in_bounds(east_x, piece_y)
+            && matches!(board.get(east_x, piece_y), PosInfo::Piece(_))
+        {
+            board.set(east_x, piece_y + dir, PosInfo::Move);
+        }
+
+        let west_x = piece_x - 1;
+        if board.is_in_bounds(west_x, piece_y)
+            && matches!(board.get(west_x, piece_y), PosInfo::Piece(_))
+        {
+            board.set(west_x, piece_y + dir, PosInfo::Move);
         }
     }
 
@@ -198,25 +222,7 @@ impl Piece {
         }
     }
 
-    // TODO: This is not at the right place. Check if this can be moved somewhere
-    // else.
-    // As stated in the comment bellow, this will break as soon as `you` is not at
-    // the bottom of the board. Thus this should probably be inside the [`Board`].
-    pub fn get_pawn_direction(ins: &board::PieceInstance) -> i8 {
-        // Currently it is assumed that you are at the bottom of the board.
-        // In case this assumption is false in the future, this code WILL not work.
-        match ins.player {
-            Player::You => -1,
-            Player::Opponent => 1,
-        }
-    }
-
-    fn add_pawn_moves_to_board(
-        x: i8,
-        y: i8,
-        ins: &board::PieceInstance,
-        board: &mut InfoBoard,
-    ) {
+    fn add_pawn_moves_to_board(x: i8, y: i8, ins: &board::PieceInstance, board: &mut InfoBoard) {
         let direction = Self::get_pawn_direction(ins);
 
         Self::check_and_add_pawn_move_at_position_to_board(x, y + direction, board);
@@ -312,6 +318,19 @@ impl Piece {
         }
 
         true
+    }
+
+    // TODO: This is not at the right place. Check if this can be moved somewhere
+    // else.
+    // As stated in the comment bellow, this will break as soon as `you` is not at
+    // the bottom of the board. Thus this should probably be inside the [`Board`].
+    pub fn get_pawn_direction(ins: &board::PieceInstance) -> i8 {
+        // Currently it is assumed that you are at the bottom of the board.
+        // In case this assumption is false in the future, this code WILL not work.
+        match ins.player {
+            Player::You => -1,
+            Player::Opponent => 1,
+        }
     }
 
     pub fn get_symbol(piece: &Self) -> String {
