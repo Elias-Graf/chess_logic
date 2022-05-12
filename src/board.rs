@@ -233,7 +233,7 @@ impl Board {
 
     // TODO: rework.
     /// Moves the currently selected piece to the specified position (if possible).
-    /// One may select a piece using [`Self::update_selected()`].
+    /// One may select a piece using [`Self::set_selected()`].
     ///
     /// Returns `true` if the piece was moved.
     pub fn move_selected_to(&mut self, to_x: i8, to_y: i8) -> bool {
@@ -493,38 +493,15 @@ impl Board {
         self.set(x, y, Some(instance));
     }
 
-    /// Updates the piece selection.
-    ///
-    /// After a piece has been selected, certain things might be performed like moving
-    /// it to another spot on the board.
-    ///
-    /// Rules:
-    /// - Selecting any piece will result in the selection to be updated.
-    /// - Selecting an empty square will remove the selection.
-    /// - Selecting the current selected piece will remove the selection.
-    // TODO: replace with simple `get_selected` and `set_selected`.
-    pub fn update_selected(&mut self, x: i8, y: i8) {
+    pub fn set_selected(&mut self, sel_x: i8, sel_y: i8) {
         assert!(
-            self.is_in_bounds(x, y),
+            self.is_in_bounds(sel_x, sel_y),
             "cannot select piece outside of board ({}/{})",
-            x,
-            y
+            sel_x,
+            sel_y,
         );
 
-        if self.get(x, y).is_none() {
-            self.selected_pos = None;
-            return;
-        }
-
-        if let Some(previous_selection) = self.selected_pos {
-            if previous_selection == (x, y) {
-                self.selected_pos = None;
-            } else {
-                self.selected_pos = Some((x, y));
-            }
-        } else {
-            self.selected_pos = Some((x, y));
-        }
+        self.selected_pos = Some((sel_x, sel_y));
     }
 
     pub fn width(&self) -> i8 {
@@ -654,7 +631,7 @@ mod tests {
         board.set(0, 0, ins(Player::Opponent, Piece::King));
         board.set(5, 1, ins(Player::Opponent, Piece::Bishop));
 
-        board.update_selected(5, 1);
+        board.set_selected(5, 1);
 
         let info_board = board.get_moves_of_selected();
 
@@ -671,14 +648,14 @@ mod tests {
         board.set(3, 4, ins(Player::Opponent, Piece::Bishop));
         board.set(2, 7, ins(Player::Opponent, Piece::Rook));
 
-        board.update_selected(1, 6);
+        board.set_selected(1, 6);
 
         let info_board = board.get_moves_of_selected();
 
         assert!(matches!(info_board.get(0, 7), PosInfo::None));
         assert!(matches!(info_board.get(1, 7), PosInfo::None));
 
-        board.update_selected(2, 5);
+        board.set_selected(2, 5);
 
         let info_board = board.get_moves_of_selected();
 
@@ -698,7 +675,7 @@ mod tests {
         board.set(7, 0, ins(Player::Opponent, Piece::King));
         board.set(1, 4, ins(Player::Opponent, Piece::Pawn));
 
-        board.update_selected(0, 6);
+        board.set_selected(0, 6);
         assert!(board.move_selected_to(0, 4));
     }
 
@@ -714,10 +691,10 @@ mod tests {
             Some(PieceInstance::new(Player::Opponent, Piece::Pawn)),
         );
 
-        board.update_selected(3, 1);
+        board.set_selected(3, 1);
         board.move_selected_to(3, 3);
 
-        board.update_selected(2, 3);
+        board.set_selected(2, 3);
         assert!(
             !board.move_selected_to(1, 2),
             "en passant was added to the wrong side"
@@ -744,10 +721,10 @@ mod tests {
             Some(PieceInstance::new(Player::Opponent, Piece::Pawn)),
         );
 
-        board.update_selected(3, 1);
+        board.set_selected(3, 1);
         board.move_selected_to(3, 3);
 
-        board.update_selected(4, 3);
+        board.set_selected(4, 3);
         assert!(
             !board.move_selected_to(5, 2),
             "west en passant was added to the wrong side",
@@ -770,10 +747,10 @@ mod tests {
         board.set(7, 0, ins(Player::Opponent, Piece::King));
         board.set(2, 4, ins(Player::Opponent, Piece::Pawn));
 
-        board.update_selected(3, 6);
+        board.set_selected(3, 6);
         board.move_selected_to(3, 4);
 
-        board.update_selected(2, 4);
+        board.set_selected(2, 4);
         assert!(
             !board.move_selected_to(1, 5),
             "east en passant was added to the wrong side",
@@ -796,10 +773,10 @@ mod tests {
         board.set(7, 0, ins(Player::Opponent, Piece::King));
         board.set(4, 4, ins(Player::Opponent, Piece::Pawn));
 
-        board.update_selected(3, 6);
+        board.set_selected(3, 6);
         board.move_selected_to(3, 4);
 
-        board.update_selected(4, 4);
+        board.set_selected(4, 4);
         assert!(
             !board.move_selected_to(5, 5),
             "west en passant was added to the wrong side",
@@ -823,19 +800,19 @@ mod tests {
         board.set(7, 0, ins(Player::Opponent, Piece::King));
         board.set(4, 4, ins(Player::Opponent, Piece::Pawn));
 
-        board.update_selected(3, 5);
+        board.set_selected(3, 5);
         board.move_selected_to(3, 4);
 
-        board.update_selected(4, 4);
+        board.set_selected(4, 4);
         assert!(
             !board.move_selected_to(3, 5),
             "en passant was added even though the enemy only moved one square"
         );
 
-        board.update_selected(5, 6);
+        board.set_selected(5, 6);
         board.move_selected_to(5, 4);
 
-        board.update_selected(4, 4);
+        board.set_selected(4, 4);
         assert!(
             !board.move_selected_to(5, 5),
             "en passant was added event though moved piece wasn't a pawn"
@@ -850,13 +827,13 @@ mod tests {
         board.set(7, 0, ins(Player::Opponent, Piece::King));
         board.set(4, 4, ins(Player::Opponent, Piece::Pawn));
 
-        board.update_selected(3, 6);
+        board.set_selected(3, 6);
         board.move_selected_to(3, 4);
 
-        board.update_selected(7, 0);
+        board.set_selected(7, 0);
         board.move_selected_to(7, 1);
 
-        board.update_selected(4, 4);
+        board.set_selected(4, 4);
         assert!(!board.move_selected_to(3, 5));
     }
 
@@ -868,7 +845,7 @@ mod tests {
         board.set(7, 0, ins(Player::Opponent, Piece::King));
         board.set(4, 4, ins(Player::Opponent, Piece::Pawn));
 
-        board.update_selected(1, 6);
+        board.set_selected(1, 6);
         board.move_selected_to(4, 3);
 
         assert!(matches!(board.get(4, 4), Some(_)));
