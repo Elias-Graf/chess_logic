@@ -227,8 +227,8 @@ impl Board {
             _ => panic!("this function should not be called if no rook is at the castle location"),
         };
 
-        self.set(rook_x_from as usize, king_y as usize, None);
-        self.set(rook_x_to as usize, king_y as usize, Some(rook_instance));
+        self.set(rook_x_from, king_y, None);
+        self.set(rook_x_to, king_y, Some(rook_instance));
     }
 
     // TODO: rework.
@@ -297,8 +297,8 @@ impl Board {
 
         let move_is_castle = matches!(move_ins.piece, Piece::King) && (to_x - piece_x).abs() == 2;
 
-        self.set(piece_x as usize, piece_y as usize, None);
-        self.set(to_x as usize, to_y as usize, Some(move_ins));
+        self.set(piece_x, piece_y, None);
+        self.set(to_x, to_y, Some(move_ins));
 
         self.selected_pos = None;
 
@@ -414,11 +414,7 @@ impl Board {
             instance.piece
         );
 
-        self.set(
-            x as usize,
-            y as usize,
-            Some(PieceInstance::new(instance.player, promote_to)),
-        );
+        self.set(x, y, Some(PieceInstance::new(instance.player, promote_to)));
 
         self.promote_pos = None
     }
@@ -434,8 +430,8 @@ impl Board {
             };
 
             let mut next_move = self.clone();
-            next_move.set(x as usize, y as usize, None);
-            next_move.set(move_x as usize, move_y as usize, Some(piece.clone()));
+            next_move.set(x, y, None);
+            next_move.set(move_x, move_y, Some(piece.clone()));
 
             if next_move.is_king_in_check(&piece.player) {
                 info_board.set(move_x, move_y, new_pos_info);
@@ -452,21 +448,20 @@ impl Board {
     }
 
     fn remove_piece_passed_by_en_passant(&mut self, to_x: i8, to_y: i8, ins: &PieceInstance) {
-        self.set(
-            to_x as usize,
-            (to_y - Piece::get_pawn_direction(ins)) as usize,
-            None,
-        );
+        self.set(to_x, to_y - Piece::get_pawn_direction(ins), None);
     }
 
     /// "Low-level" set function, that simply overrides a position with the given
     /// value.
-    ///
-    /// The passed values are **not** checked for validity, e.g. if they are in
-    /// the boards bounds. That burden is on the caller of this function.
-    // TODO: change type of x and y to i8
-    pub fn set(&mut self, x: usize, y: usize, instance: Option<PieceInstance>) {
-        self.board[x][y] = instance;
+    pub fn set(&mut self, x: i8, y: i8, instance: Option<PieceInstance>) {
+        assert!(
+            self.is_in_bounds(x, y),
+            "cannot set position ({}/{}) that is out of bounds",
+            x,
+            y
+        );
+
+        self.board[x as usize][y as usize] = instance;
     }
 
     /// Adds a new piece to the board.
@@ -495,7 +490,7 @@ impl Board {
 
         let instance = PieceInstance::new(player, piece);
 
-        self.set(x as usize, y as usize, Some(instance));
+        self.set(x, y, Some(instance));
     }
 
     /// Updates the piece selection.
