@@ -53,11 +53,10 @@ impl InfoBoard {
         const FG_WHITE: &str = "\u{001b}[38;5;15m";
 
         match pos {
-            PosInfo::Piece(ins) => match self.get_color_of(&ins.player) {
+            PosInfo::Piece(ins) | PosInfo::PieceHit(ins) => match self.get_color_of(&ins.player) {
                 Color::Black => FG_BLACK,
                 Color::White => FG_WHITE,
             },
-            PosInfo::PieceHit(_) => todo!(),
             _ => "",
         }
     }

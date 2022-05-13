@@ -156,7 +156,9 @@ impl Board {
                 }
             }
 
-            Piece::add_moves_for_piece_at_to_board(x, y, &mut info_board);
+            if &ins.player != check_player {
+                Piece::add_moves_for_piece_at_to_board(x, y, &mut info_board);
+            }
         }
 
         let (king_x, king_y) = king_pos.expect(&format!(
@@ -469,7 +471,8 @@ impl Board {
     }
 
     fn remove_moves_that_result_in_check(&self, x: i8, y: i8, info_board: &mut InfoBoard) {
-        let piece = self.get(x, y).as_ref().unwrap();
+        let mut piece = self.get(x, y).as_ref().unwrap().clone();
+        piece.was_moved = true;
 
         for (move_x, move_y) in self.iter_over_positions() {
             let new_pos_info = match info_board.get(move_x, move_y) {
@@ -549,7 +552,7 @@ impl Iterator for PosInter {
         }
 
         if self.y < self.height - 1 {
-            self.x = 0;
+            self.x = 1;
             self.y += 1;
 
             let next = (0, self.y);
