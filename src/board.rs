@@ -299,6 +299,10 @@ impl Board {
     }
 
     fn move_was_successful_en_passant(&mut self, to_x: i8, to_y: i8, ins: &PieceInstance) -> bool {
+        if !matches!(ins.piece, Piece::Pawn) {
+            return false;
+        }
+
         let moved_to_empty_square = matches!(self.get(to_x, to_y), None);
         let moved_behind_pawn = self
             .get(to_x, to_y - Piece::get_pawn_direction(ins))
@@ -872,6 +876,20 @@ mod tests {
         board.move_selected_to(4, 3);
 
         assert!(matches!(board.get(4, 4), Some(_)));
+    }
+
+    #[test]
+    fn en_passant_move_check_is_only_done_for_pawn() {
+        // If the checks are done for all pieces (which in itself would be fine),
+        // it is possible that they are done for pieces on the end of the board,
+        // which results in an out of bound access.
+
+        let mut board = Board::new(Color::Black, Color::White);
+        board.set(0, 7, ins(Player::You, Piece::King));
+        board.set(0, 0, ins(Player::Opponent, Piece::King));
+
+        board.set_selected(0, 0);
+        board.move_selected_to(1, 0);
     }
 
     /// Create a new piece instance.
