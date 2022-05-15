@@ -24,6 +24,7 @@ pub enum PosInfo {
 pub struct InfoBoard {
     board: Vec<Vec<PosInfo>>,
     height: i8,
+    pub moves: Vec<(i8, i8)>,
     opponent_color: Color,
     width: i8,
     you_color: Color,
@@ -103,19 +104,24 @@ impl InfoBoard {
         Self {
             board: vec![vec![PosInfo::None; width]; height],
             height: height as i8,
+            moves: Vec::new(),
             opponent_color,
             width: width as i8,
             you_color,
         }
     }
 
-    pub fn set(&mut self, x: i8, y: i8, info: PosInfo) {
+    pub fn set(&mut self, x: i8, y: i8, info: PosInfo) {       
         assert!(
             self.is_in_bounds(x, y),
             "cannot set a position outside the board ({}/{})",
             x,
             y,
         );
+
+        if matches!(info, PosInfo::Move) {
+            self.moves.push((x, y));
+        }
 
         self.board[y as usize][x as usize] = info;
     }
