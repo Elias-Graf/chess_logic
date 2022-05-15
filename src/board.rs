@@ -7,16 +7,22 @@ use crate::{
 
 #[derive(Clone)]
 pub struct Board {
-    board: Vec<Vec<Option<PieceInstance>>>,
+    pub board: [Option<PieceInstance>; Board::SIZE as usize],
+    #[deprecated(note = "use `Self::HEIGHT` instead")]
     height: i8,
     opponent_color: Color,
     promote_pos: Option<(i8, i8)>,
     selected_pos: Option<(i8, i8)>,
+    #[deprecated(note = "use `Self::WIDTH` instead")]
     width: i8,
     you_color: Color,
 }
 
 impl Board {
+    pub const HEIGHT: u8 = 8;
+    pub const WIDTH: u8 = 8;
+    pub const SIZE: u8 = Self::HEIGHT * Self::WIDTH;
+
     /// Check if a given piece is a pawn, and if it reached the end of the board.
     /// If the end of the board was reached, the position will be saved in promote
     /// pos.
@@ -41,7 +47,7 @@ impl Board {
             y
         );
 
-        &self.board[x as usize][y as usize]
+        &self.board[Self::x_y_to_idx(x, y)]
     }
 
     pub fn get_color_of_player(&self, player: &Player) -> &Color {
@@ -117,7 +123,7 @@ impl Board {
             y
         );
 
-        self.board[x as usize][y as usize].as_mut()
+        self.board[Self::x_y_to_idx(x, y)].as_mut()
     }
 
     pub fn get_promote_pos(&self) -> Option<(i8, i8)> {
@@ -316,8 +322,10 @@ impl Board {
         let width = 8;
         let height = 8;
 
+        // https://github.com/rust-lang/rust/issues/44796
+        const INIT: Option<PieceInstance> = None;
         Self {
-            board: vec![vec![None; width]; height],
+            board: [INIT; Self::SIZE as usize],
             height: height as i8,
             opponent_color,
             promote_pos: None,
@@ -517,7 +525,11 @@ impl Board {
             y
         );
 
-        self.board[x as usize][y as usize] = instance;
+        self.board[Self::x_y_to_idx(x, y)] = instance;
+    }
+
+    fn x_y_to_idx(x: i8, y: i8) -> usize {
+        y as usize * Self::HEIGHT as usize + x as usize
     }
 
     pub fn set_selected(&mut self, sel_x: i8, sel_y: i8) {
