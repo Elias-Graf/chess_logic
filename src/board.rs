@@ -7,7 +7,7 @@ use crate::{
 
 #[derive(Clone)]
 pub struct Board {
-    pub board: [Option<PieceInstance>; Board::SIZE as usize],
+    pub board: [Option<PieceInstance>; Self::SIZE as usize],
     #[deprecated(note = "use `Self::HEIGHT` instead")]
     height: i8,
     opponent_color: Color,
@@ -134,6 +134,7 @@ impl Board {
         &self.selected_pos
     }
 
+    #[deprecated(note = "use `Self::WIDTH` instead")]
     pub fn height(&self) -> i8 {
         return self.height;
     }
@@ -543,6 +544,7 @@ impl Board {
         self.selected_pos = Some((sel_x, sel_y));
     }
 
+    #[deprecated(note = "use `Self::WIDTH` instead")]
     pub fn width(&self) -> i8 {
         return self.width;
     }
