@@ -20,17 +20,16 @@ pub enum PosInfo {
 /// Contains information (**no** logic) about each position on the board.
 ///
 /// Can be useful for displaying it, figuring out what moves are valid, etc.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct InfoBoard {
-    board: Vec<Vec<PosInfo>>,
-    height: i8,
+    pub board: [PosInfo; Board::SIZE as usize],
     pub moves: Vec<(i8, i8)>,
-    opponent_color: Color,
-    width: i8,
-    you_color: Color,
+    pub opponent_color: Color,
+    pub you_color: Color,
 }
 
 impl InfoBoard {
+    #[deprecated(note = "use `get_by_idx` instead")]
     pub fn get(&self, x: i8, y: i8) -> &PosInfo {
         assert!(
             self.is_in_bounds(x, y),
@@ -39,7 +38,11 @@ impl InfoBoard {
             y,
         );
 
-        &self.board[y as usize][x as usize]
+        self.get_by_idx(Self::x_y_to_idx(x, y))
+    }
+
+    pub fn get_by_idx(&self, idx: usize) -> &PosInfo {
+        &self.board[idx]
     }
 
     fn get_color_of(&self, player: &Player) -> &Color {
@@ -85,33 +88,26 @@ impl InfoBoard {
         }
     }
 
-    pub fn height(&self) -> i8 {
-        self.height
-    }
-
     /// Checks if a position is within the bounds of the board.
     ///
     /// The variable might safely be cased to [`usize`] after `true` was returned
     /// from this function.
     pub fn is_in_bounds(&self, x: i8, y: i8) -> bool {
-        x >= 0 && x < self.width && y >= 0 && y < self.height
+        x >= 0 && (x as u8) < Board::WIDTH && y >= 0 && (y as u8) < Board::HEIGHT
     }
 
     pub fn new(you_color: Color, opponent_color: Color) -> Self {
-        let height = 8;
-        let width = 8;
-
+        const INIT: PosInfo = PosInfo::None;
         Self {
-            board: vec![vec![PosInfo::None; width]; height],
-            height: height as i8,
+            board: [INIT; Board::SIZE as usize],
             moves: Vec::new(),
             opponent_color,
-            width: width as i8,
             you_color,
         }
     }
 
-    pub fn set(&mut self, x: i8, y: i8, info: PosInfo) {       
+    #[deprecated(note = "use `set_by_idx` instead")]
+    pub fn set(&mut self, x: i8, y: i8, info: PosInfo) {
         assert!(
             self.is_in_bounds(x, y),
             "cannot set a position outside the board ({}/{})",
@@ -119,15 +115,26 @@ impl InfoBoard {
             y,
         );
 
-        if matches!(info, PosInfo::Move) {
-            self.moves.push((x, y));
-        }
-
-        self.board[y as usize][x as usize] = info;
+        self.set_by_idx(Self::x_y_to_idx(x, y), info);
     }
 
-    pub fn width(&self) -> i8 {
-        self.width
+    pub fn set_by_idx(&mut self, idx: usize, info: PosInfo) {
+        if matches!(info, PosInfo::Move | PosInfo::PieceHit(_)) {
+            let x = idx % Board::HEIGHT as usize;
+            let y = idx / Board::HEIGHT as usize;
+
+            self.moves.push((x as i8, y as i8));
+        }
+
+        self.board[idx] = info;
+    }
+
+    pub fn take(&mut self, idx: usize) -> PosInfo {
+        std::mem::replace(&mut self.board[idx], PosInfo::None)
+    }
+
+    fn x_y_to_idx(x: i8, y: i8) -> usize {
+        y as usize * Board::HEIGHT as usize + x as usize
     }
 }
 
@@ -137,9 +144,9 @@ impl From<&Board> for InfoBoard {
         let opponent_color = board.get_color_of_player(&Player::Opponent).clone();
         let mut info_board = InfoBoard::new(you_color, opponent_color);
 
-        for (x, y) in board.iter_over_positions() {
-            if let Some(ins) = board.get(x, y) {
-                info_board.set(x, y, PosInfo::Piece(ins.clone()));
+        for (idx, pos) in board.board.as_ref().iter().enumerate() {
+            if let Some(ins) = pos {
+                info_board.set_by_idx(idx, PosInfo::Piece(ins.clone()));
             }
         }
 
@@ -153,9 +160,10 @@ impl fmt::Display for InfoBoard {
 
         let mut val = "\n".to_owned();
 
-        for y in 0..self.height {
-            for x in 0..self.height {
-                let pos = self.get(x, y);
+        for y in 0..Board::HEIGHT as i8 {
+            for x in 0..Board::WIDTH as i8 {
+                let idx = (y * Board::HEIGHT as i8 + x) as usize;
+                let pos = self.get_by_idx(idx);
                 let bg_color = self.get_display_square_bg_color(x, y);
                 let fg_color = self.get_display_fg_color_for(pos);
                 let piece_symbol = self.get_display_symbol_for(pos);

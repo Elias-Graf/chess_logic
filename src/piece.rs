@@ -1,8 +1,23 @@
 use crate::{
     board::{self, PieceInstance},
     info_board::{self, PosInfo},
-    InfoBoard, Player,
+    Board, InfoBoard, Player,
 };
+
+type ToEdgeOffset = [[u8; 8]; Board::SIZE as usize];
+
+const DIR_NORTH: usize = 0;
+const DIR_NORTH_EAST: usize = 1;
+const DIR_EAST: usize = 2;
+const DIR_SOUTH_EAST: usize = 3;
+const DIR_SOUTH: usize = 4;
+const DIR_SOUTH_WEST: usize = 5;
+const DIR_WEST: usize = 6;
+const DIR_NORTH_WEST: usize = 7;
+
+const DIR_OFFSETS: [i8; 8] = [-8, -7, 1, 9, 8, 7, -1, -9];
+
+const TO_EDGE_OFFSETS: ToEdgeOffset = generate_to_edge_map();
 
 #[derive(Clone, Copy, Debug)]
 pub enum Piece {
@@ -15,42 +30,56 @@ pub enum Piece {
 }
 
 impl Piece {
-    fn add_bishop_moves_to_board(x: i8, y: i8, board: &mut InfoBoard) {
-        Self::add_moves_by_direction(x, y, Direction::NorthEast, board);
-        Self::add_moves_by_direction(x, y, Direction::SouthEast, board);
-        Self::add_moves_by_direction(x, y, Direction::SouthWest, board);
-        Self::add_moves_by_direction(x, y, Direction::NorthWest, board);
+    fn add_bishop_moves_to_board(idx: usize, board: &mut InfoBoard) {
+        Self::add_sliding_piece_moves(idx, DIR_NORTH_EAST, board);
+        Self::add_sliding_piece_moves(idx, DIR_SOUTH_EAST, board);
+        Self::add_sliding_piece_moves(idx, DIR_SOUTH_WEST, board);
+        Self::add_sliding_piece_moves(idx, DIR_NORTH_WEST, board);
     }
 
-    fn add_castle_moves_to_board(king_x: i8, king_y: i8, board: &mut InfoBoard) {
-        let king_instance = match board.get(king_x, king_y) {
-            info_board::PosInfo::Piece(instance) => instance,
-            // Castle is not allowed when the king is in check.
-            info_board::PosInfo::PieceHit(_) => return,
-            info => panic!(
-                "cannot add castle moves as no piece was on the specified position ({}/{}), instead received '{:?}'",
-                king_x, king_y, info
-            ),
+    fn add_castle_moves(king_idx: usize, board: &mut InfoBoard) {
+        let king_ins = match board.get_by_idx(king_idx) {
+            // TODO: castle not allowed when piece is in check
+            PosInfo::Piece(ins) | PosInfo::PieceHit(ins) => ins,
+            _ => panic!("could not find king at '{}' in castle check", king_idx),
         };
 
-        assert!(
-            matches!(king_instance.piece, Piece::King),
-            "can only castle with kings, specified piece ({}/{}) was '{:?}'",
-            king_x,
-            king_y,
-            king_instance.piece
-        );
+        // TODO: castling can only be done when no square up to the rook is blocked
+        // TODO: castling can only be done when no square up to the rook is challenged
 
-        if king_instance.was_moved {
+        // Castle is only possible when the king hasn't been moved yet.
+        if king_ins.was_moved {
             return;
         }
 
-        if Self::check_if_rook_can_be_castled(king_x, king_y, Direction::West, board) {
-            board.set(king_x - 2, king_y, info_board::PosInfo::Move);
+        let west_pos = (king_idx as i8
+            + TO_EDGE_OFFSETS[king_idx][DIR_WEST] as i8 * DIR_OFFSETS[DIR_WEST])
+            as usize;
+
+        if let PosInfo::Piece(west_rook_ins) = board.get_by_idx(west_pos) {
+            // Castle is only possible when the rook hasn't been moved yet.
+            if !west_rook_ins.was_moved {
+                Self::add_move_if_empty(
+                    king_idx,
+                    (king_idx as i8 + DIR_OFFSETS[DIR_WEST] * 2) as usize,
+                    board,
+                );
+            }
         }
 
-        if Self::check_if_rook_can_be_castled(king_x, king_y, Direction::East, board) {
-            board.set(king_x + 2, king_y, info_board::PosInfo::Move);
+        let east_pos = (king_idx as i8
+            + TO_EDGE_OFFSETS[king_idx][DIR_EAST] as i8 * DIR_OFFSETS[DIR_EAST])
+            as usize;
+
+        if let PosInfo::Piece(east_rook_ins) = board.get_by_idx(east_pos) {
+            // Castle is only possible when the rook hasn't been moved yet.
+            if !east_rook_ins.was_moved {
+                Self::add_move_if_empty(
+                    king_idx,
+                    (king_idx as i8 + DIR_OFFSETS[DIR_EAST] * 2) as usize,
+                    board,
+                );
+            }
         }
     }
 
@@ -77,121 +106,166 @@ impl Piece {
         }
     }
 
-    fn add_king_moves_to_board(x: i8, y: i8, board: &mut InfoBoard) {
-        Self::add_moves_by_direction_and_length(x, y, Direction::North, 1, board);
-        Self::add_moves_by_direction_and_length(x, y, Direction::NorthEast, 1, board);
-        Self::add_moves_by_direction_and_length(x, y, Direction::East, 1, board);
-        Self::add_moves_by_direction_and_length(x, y, Direction::SouthEast, 1, board);
-        Self::add_moves_by_direction_and_length(x, y, Direction::South, 1, board);
-        Self::add_moves_by_direction_and_length(x, y, Direction::SouthWest, 1, board);
-        Self::add_moves_by_direction_and_length(x, y, Direction::West, 1, board);
-        Self::add_moves_by_direction_and_length(x, y, Direction::NorthWest, 1, board);
+    fn add_hit_if_piece_is_enemy(orig_idx: usize, hit_idx: usize, board: &mut InfoBoard) -> bool {
+        let orig_ins = match board.get_by_idx(orig_idx) {
+            PosInfo::Piece(ins) => ins,
+            info => panic!("expected info to be piece but was '{:?}'", info),
+        };
+        let hit_ins = match board.get_by_idx(hit_idx) {
+            PosInfo::Piece(ins) => ins,
+            _ => return false,
+        };
 
-        Self::add_castle_moves_to_board(x, y, board);
+        if orig_ins.player == hit_ins.player {
+            return false;
+        }
+
+        match board.take(hit_idx) {
+            PosInfo::Piece(ins) => {
+                board.set_by_idx(hit_idx, PosInfo::PieceHit(ins));
+            }
+            _ => (),
+        }
+
+        false
     }
 
-    fn add_knight_moves_to_board(piece_x: i8, piece_y: i8, board: &mut InfoBoard) {
-        const REL_MOVES: [(i8, i8); 8] = [
-            (1, -2),
-            (2, -1),
-            (2, 1),
-            (1, 2),
-            (-1, 2),
-            (-2, 1),
-            (-2, -1),
-            (-1, -2),
-        ];
+    fn add_king_moves_to_board(idx: usize, board: &mut InfoBoard) {
+        let north = (idx as i8 + DIR_OFFSETS[DIR_NORTH]) as usize;
+        let north_east = (idx as i8 + DIR_OFFSETS[DIR_NORTH_EAST]) as usize;
+        let east = (idx as i8 + DIR_OFFSETS[DIR_EAST]) as usize;
+        let south_east = (idx as i8 + DIR_OFFSETS[DIR_SOUTH_EAST]) as usize;
+        let south = (idx as i8 + DIR_OFFSETS[DIR_SOUTH]) as usize;
+        let south_west = (idx as i8 + DIR_OFFSETS[DIR_SOUTH_WEST]) as usize;
+        let west = (idx as i8 + DIR_OFFSETS[DIR_WEST]) as usize;
+        let north_west = (idx as i8 + DIR_OFFSETS[DIR_NORTH_WEST]) as usize;
 
-        let board_width = board.width();
-        let board_height = board.height();
+        if TO_EDGE_OFFSETS[idx][DIR_NORTH] > 0 {
+            Self::add_move_or_hit_by_idx(idx, north, board);
+        }
+        if TO_EDGE_OFFSETS[idx][DIR_NORTH_EAST] > 0 {
+            Self::add_move_or_hit_by_idx(idx, north_east, board);
+        }
+        if TO_EDGE_OFFSETS[idx][DIR_EAST] > 0 {
+            Self::add_move_or_hit_by_idx(idx, east, board);
+        }
+        if TO_EDGE_OFFSETS[idx][DIR_SOUTH_EAST] > 0 {
+            Self::add_move_or_hit_by_idx(idx, south_east, board);
+        }
+        if TO_EDGE_OFFSETS[idx][DIR_SOUTH] > 0 {
+            Self::add_move_or_hit_by_idx(idx, south, board);
+        }
+        if TO_EDGE_OFFSETS[idx][DIR_SOUTH_WEST] > 0 {
+            Self::add_move_or_hit_by_idx(idx, south_west, board);
+        }
+        if TO_EDGE_OFFSETS[idx][DIR_WEST] > 0 {
+            Self::add_move_or_hit_by_idx(idx, west, board);
+        }
+        if TO_EDGE_OFFSETS[idx][DIR_NORTH_WEST] > 0 {
+            Self::add_move_or_hit_by_idx(idx, north_west, board);
+        }
 
-        let abs_moves = REL_MOVES
-            .iter()
-            .map(|&(rel_x, rel_y)| (piece_x + rel_x, piece_y + rel_y))
-            .filter(|&(x, y)| x >= 0 && y >= 0 && x < board_width && y < board_height);
+        Self::add_castle_moves(idx, board);
+    }
 
-        for (target_x, target_y) in abs_moves {
-            let piece_was_hit = Self::set_for_piece_at_move_or_hit_at_in_board(
-                piece_x, piece_y, target_x, target_y, board,
-            );
+    fn add_knight_moves_to_board(x: i8, y: i8, board: &mut InfoBoard) {
+        let idx = x_y_to_idx(x, y);
 
-            if piece_was_hit {
-                continue;
+        if TO_EDGE_OFFSETS[idx][DIR_NORTH] > 1 {
+            if TO_EDGE_OFFSETS[idx][DIR_WEST] > 0 {
+                Self::add_move_or_hit_by_idx(
+                    idx,
+                    (idx as i8 + DIR_OFFSETS[DIR_NORTH] * 2 + DIR_OFFSETS[DIR_WEST]) as usize,
+                    board,
+                );
+            }
+            if TO_EDGE_OFFSETS[idx][DIR_EAST] > 0 {
+                Self::add_move_or_hit_by_idx(
+                    idx,
+                    (idx as i8 + DIR_OFFSETS[DIR_NORTH] * 2 + DIR_OFFSETS[DIR_EAST]) as usize,
+                    board,
+                );
+            }
+        }
+        if TO_EDGE_OFFSETS[idx][DIR_EAST] > 1 {
+            if TO_EDGE_OFFSETS[idx][DIR_NORTH] > 0 {
+                Self::add_move_or_hit_by_idx(
+                    idx,
+                    (idx as i8 + DIR_OFFSETS[DIR_NORTH] + DIR_OFFSETS[DIR_EAST] * 2) as usize,
+                    board,
+                );
+            }
+            if TO_EDGE_OFFSETS[idx][DIR_SOUTH] > 0 {
+                Self::add_move_or_hit_by_idx(
+                    idx,
+                    (idx as i8 + DIR_OFFSETS[DIR_SOUTH] + DIR_OFFSETS[DIR_EAST] * 2) as usize,
+                    board,
+                );
+            }
+        }
+        if TO_EDGE_OFFSETS[idx][DIR_SOUTH] > 1 {
+            if TO_EDGE_OFFSETS[idx][DIR_EAST] > 0 {
+                Self::add_move_or_hit_by_idx(
+                    idx,
+                    (idx as i8 + DIR_OFFSETS[DIR_SOUTH] * 2 + DIR_OFFSETS[DIR_EAST]) as usize,
+                    board,
+                );
+            }
+            if TO_EDGE_OFFSETS[idx][DIR_WEST] > 0 {
+                Self::add_move_or_hit_by_idx(
+                    idx,
+                    (idx as i8 + DIR_OFFSETS[DIR_SOUTH] * 2 + DIR_OFFSETS[DIR_WEST]) as usize,
+                    board,
+                );
+            }
+        }
+        if TO_EDGE_OFFSETS[idx][DIR_WEST] > 1 {
+            if TO_EDGE_OFFSETS[idx][DIR_SOUTH] > 0 {
+                Self::add_move_or_hit_by_idx(
+                    idx,
+                    (idx as i8 + DIR_OFFSETS[DIR_SOUTH] + DIR_OFFSETS[DIR_WEST] * 2) as usize,
+                    board,
+                );
+            }
+            if TO_EDGE_OFFSETS[idx][DIR_NORTH] > 0 {
+                Self::add_move_or_hit_by_idx(
+                    idx,
+                    (idx as i8 + DIR_OFFSETS[DIR_NORTH] + DIR_OFFSETS[DIR_WEST] * 2) as usize,
+                    board,
+                );
             }
         }
     }
 
-    fn add_moves_by_direction(x: i8, y: i8, direction: Direction, board: &mut InfoBoard) {
-        Self::add_moves_by_direction_and_length(
-            x,
-            y,
-            direction,
-            i8::max(board.width(), board.height()),
-            board,
-        )
+    fn add_move_if_empty(_orig_idx: usize, hit_idx: usize, board: &mut InfoBoard) -> bool {
+        if matches!(board.get_by_idx(hit_idx), PosInfo::None) {
+            board.set_by_idx(hit_idx, PosInfo::Move);
+            return true;
+        }
+
+        false
     }
 
-    fn add_moves_by_direction_and_length(
-        piece_x: i8,
-        piece_y: i8,
-        direction: Direction,
-        length: i8,
-        board: &mut InfoBoard,
-    ) {
-        for i in 1..length + 1 {
-            let (target_x, target_y) = match direction {
-                Direction::North => {
-                    if i > piece_y {
-                        break;
-                    }
+    fn add_move_or_hit_by_idx(orig_idx: usize, hit_idx: usize, board: &mut InfoBoard) -> bool {
+        let orig_ins = match board.get_by_idx(orig_idx) {
+            PosInfo::Piece(ins) => ins,
+            _ => panic!(),
+        };
 
-                    (piece_x, piece_y - i)
-                }
-                Direction::NorthEast => {
-                    if i > piece_y {
-                        break;
-                    }
-
-                    (piece_x + i, piece_y - i)
-                }
-                Direction::East => (piece_x + i, piece_y),
-                Direction::SouthEast => (piece_x + i, piece_y + i),
-                Direction::South => (piece_x, piece_y + i),
-                Direction::SouthWest => {
-                    if i > piece_x {
-                        break;
-                    }
-
-                    (piece_x - i, piece_y + i)
-                }
-                Direction::West => {
-                    if i > piece_x {
-                        break;
-                    }
-
-                    (piece_x - i, piece_y)
-                }
-                Direction::NorthWest => {
-                    if i > piece_x || i > piece_y {
-                        break;
-                    }
-
-                    (piece_x - i, piece_y - i)
-                }
-            };
-
-            if !board.is_in_bounds(target_x, target_y) {
-                break;
+        if let PosInfo::Piece(target_ins) = board.get_by_idx(hit_idx) {
+            if orig_ins.player == target_ins.player {
+                return true;
             }
 
-            let piece_was_hit = Self::set_for_piece_at_move_or_hit_at_in_board(
-                piece_x, piece_y, target_x, target_y, board,
-            );
+            let new_ins = PosInfo::PieceHit(target_ins.clone());
+            board.set_by_idx(hit_idx, new_ins);
 
-            if piece_was_hit {
-                break;
-            }
+            return true;
         }
+
+        board.set_by_idx(hit_idx, PosInfo::Move);
+
+        false
     }
 
     pub fn add_moves_for_piece_at_to_board(x: i8, y: i8, board: &mut InfoBoard) {
@@ -202,7 +276,9 @@ impl Piece {
             y,
         );
 
-        let instance = match board.get(x, y) {
+        let idx = x_y_to_idx(x, y);
+
+        let ins = match board.get_by_idx(idx) {
             info_board::PosInfo::Piece(piece) | info_board::PosInfo::PieceHit(piece) => {
                 piece.clone()
             }
@@ -212,118 +288,75 @@ impl Piece {
             ),
         };
 
-        match &instance.piece {
-            Self::Bishop => Self::add_bishop_moves_to_board(x, y, board),
-            Self::King => Self::add_king_moves_to_board(x, y, board),
+        match &ins.piece {
+            Self::Bishop => Self::add_bishop_moves_to_board(idx, board),
+            Self::King => Self::add_king_moves_to_board(idx, board),
             Self::Knight => Self::add_knight_moves_to_board(x, y, board),
-            Self::Pawn => Self::add_pawn_moves_to_board(x, y, &instance, board),
-            Self::Queen => Self::add_queen_moves_to_board(x, y, board),
-            Self::Rook => Self::add_rook_moves_to_board(x, y, board),
+            Self::Pawn => Self::add_pawn_moves_to_board(idx, &ins, board),
+            Self::Queen => Self::add_queen_moves_to_board(idx, board),
+            Self::Rook => Self::add_rook_moves_to_board(idx, board),
         }
     }
 
-    fn add_pawn_moves_to_board(x: i8, y: i8, ins: &board::PieceInstance, board: &mut InfoBoard) {
-        let direction = Self::get_pawn_direction(ins);
+    fn add_pawn_moves_to_board(idx: usize, ins: &board::PieceInstance, board: &mut InfoBoard) {
+        let (dir_offset_left, dir_offset, dir_offset_right) = match Self::get_pawn_direction(ins) {
+            -1 => (
+                DIR_OFFSETS[DIR_NORTH_WEST],
+                DIR_OFFSETS[DIR_NORTH],
+                DIR_OFFSETS[DIR_NORTH_EAST],
+            ),
+            1 => (
+                DIR_OFFSETS[DIR_SOUTH_WEST],
+                DIR_OFFSETS[DIR_SOUTH],
+                DIR_OFFSETS[DIR_SOUTH_EAST],
+            ),
+            unknown => panic!("unsupported direction {}", unknown),
+        };
 
-        Self::check_and_add_pawn_move_at_position_to_board(x, y + direction, board);
-        // The pawn is allowed to move two positions on it's first move.
-        // The pawn can't "jump" over a pice, thus the first square needs to be free (movable to).
-        if !ins.was_moved && matches!(board.get(x, y + direction), info_board::PosInfo::Move) {
-            Self::check_and_add_pawn_move_at_position_to_board(x, y + direction * 2, board);
+        Self::add_move_if_empty(idx, (idx as i8 + dir_offset) as usize, board);
+        if !ins.was_moved {
+            Self::add_move_if_empty(idx, (idx as i8 + dir_offset * 2) as usize, board);
         }
 
-        Self::check_and_add_pawn_hit_at_position_to_board(&ins, x - 1, y + direction, board);
-        Self::check_and_add_pawn_hit_at_position_to_board(&ins, x + 1, y + direction, board);
+        Self::add_hit_if_piece_is_enemy(idx, (idx as i8 + dir_offset_left) as usize, board);
+        Self::add_hit_if_piece_is_enemy(idx, (idx as i8 + dir_offset_right) as usize, board);
     }
 
-    fn add_queen_moves_to_board(x: i8, y: i8, board: &mut InfoBoard) {
-        Self::add_moves_by_direction(x, y, Direction::NorthEast, board);
-        Self::add_moves_by_direction(x, y, Direction::SouthEast, board);
-        Self::add_moves_by_direction(x, y, Direction::SouthWest, board);
-        Self::add_moves_by_direction(x, y, Direction::NorthWest, board);
-
-        Self::add_moves_by_direction(x, y, Direction::North, board);
-        Self::add_moves_by_direction(x, y, Direction::East, board);
-        Self::add_moves_by_direction(x, y, Direction::South, board);
-        Self::add_moves_by_direction(x, y, Direction::West, board);
+    fn add_queen_moves_to_board(idx: usize, board: &mut InfoBoard) {
+        Self::add_sliding_piece_moves(idx, DIR_NORTH, board);
+        Self::add_sliding_piece_moves(idx, DIR_NORTH_EAST, board);
+        Self::add_sliding_piece_moves(idx, DIR_EAST, board);
+        Self::add_sliding_piece_moves(idx, DIR_SOUTH_EAST, board);
+        Self::add_sliding_piece_moves(idx, DIR_SOUTH, board);
+        Self::add_sliding_piece_moves(idx, DIR_SOUTH_WEST, board);
+        Self::add_sliding_piece_moves(idx, DIR_WEST, board);
+        Self::add_sliding_piece_moves(idx, DIR_NORTH_WEST, board);
     }
 
-    fn add_rook_moves_to_board(x: i8, y: i8, board: &mut InfoBoard) {
-        Self::add_moves_by_direction(x, y, Direction::North, board);
-        Self::add_moves_by_direction(x, y, Direction::East, board);
-        Self::add_moves_by_direction(x, y, Direction::South, board);
-        Self::add_moves_by_direction(x, y, Direction::West, board);
+    fn add_rook_moves_to_board(idx: usize, board: &mut InfoBoard) {
+        Self::add_sliding_piece_moves(idx, DIR_NORTH, board);
+        Self::add_sliding_piece_moves(idx, DIR_EAST, board);
+        Self::add_sliding_piece_moves(idx, DIR_SOUTH, board);
+        Self::add_sliding_piece_moves(idx, DIR_WEST, board);
     }
 
-    /// * `orig_ins` - The originating instance of the hit.
-    fn check_and_add_pawn_hit_at_position_to_board(
-        orig_ins: &PieceInstance,
-        x: i8,
-        y: i8,
-        board: &mut InfoBoard,
-    ) {
-        if !board.is_in_bounds(x, y) {
-            return;
-        }
-
-        if let info_board::PosInfo::Piece(target_ins) = board.get(x, y) {
-            if orig_ins.player == target_ins.player {
+    fn add_sliding_piece_moves(piece_idx: usize, dir: usize, board: &mut InfoBoard) {
+        for move_idx in 0..TO_EDGE_OFFSETS[piece_idx][dir] {
+            if Self::add_move_or_hit_by_idx(
+                piece_idx,
+                (piece_idx as i8 + (move_idx + 1) as i8 * DIR_OFFSETS[dir]) as usize,
+                board,
+            ) {
                 return;
             }
-
-            let instance = target_ins.clone();
-
-            board.set(x, y, info_board::PosInfo::PieceHit(instance));
         }
-    }
-
-    fn check_and_add_pawn_move_at_position_to_board(x: i8, y: i8, board: &mut InfoBoard) {
-        if !board.is_in_bounds(x, y) {
-            return;
-        }
-
-        if matches!(board.get(x, y), info_board::PosInfo::None) {
-            board.set(x, y, info_board::PosInfo::Move);
-        }
-    }
-
-    fn check_if_rook_can_be_castled(
-        king_x: i8,
-        king_y: i8,
-        direction: Direction,
-        board: &mut InfoBoard,
-    ) -> bool {
-        let (range_to_check, rook_x) = match direction {
-            Direction::East => (king_x + 1..board.width() - 1, board.width() - 1),
-            Direction::West => (1..king_x, 0),
-            _ => panic!(
-                "direction '{:?}' not valid when checking if rook can be castled",
-                direction
-            ),
-        };
-
-        let rook_instance = match board.get(rook_x, king_y) {
-            info_board::PosInfo::Piece(instance) => instance,
-            _ => return false,
-        };
-
-        if rook_instance.was_moved {
-            return false;
-        }
-
-        for i in range_to_check {
-            if let info_board::PosInfo::Piece(_) = board.get(i, king_y) {
-                return false;
-            }
-        }
-
-        true
     }
 
     // TODO: This is not at the right place. Check if this can be moved somewhere
     // else.
     // As stated in the comment bellow, this will break as soon as `you` is not at
     // the bottom of the board. Thus this should probably be inside the [`Board`].
+    // TODO: additionally, this could be changed to return the cardinal directions.
     pub fn get_pawn_direction(ins: &board::PieceInstance) -> i8 {
         // Currently it is assumed that you are at the bottom of the board.
         // In case this assumption is false in the future, this code WILL not work.
@@ -344,71 +377,489 @@ impl Piece {
         }
         .to_owned()
     }
-
-    /// For a piece at a given position, set a move or a hit at a given position.
-    ///
-    /// It will determined if a hit or a move is registered, depending on if the
-    /// target position is empty or not.
-    ///
-    /// Returns `true` when a piece was hit. In that case, the piece should "stop"
-    /// adding further moves in that direction.
-    fn set_for_piece_at_move_or_hit_at_in_board(
-        orig_x: i8,
-        orig_y: i8,
-        target_x: i8,
-        target_y: i8,
-        board: &mut InfoBoard,
-    ) -> bool {
-        assert!(
-            board.is_in_bounds(orig_x, orig_y),
-            "cannot set move for piece out of bounds ({}/{})",
-            orig_x,
-            orig_y
-        );
-        assert!(
-            board.is_in_bounds(target_x, target_y),
-            "cannot set move or hit outside bounds ({}/{})",
-            target_x,
-            target_y
-        );
-
-        let target_pos = board.get(target_x, target_y);
-
-        let target_ins = match target_pos {
-            info_board::PosInfo::Move => return false,
-            info_board::PosInfo::None => {
-                board.set(target_x, target_y, info_board::PosInfo::Move);
-                return false;
-            }
-            info_board::PosInfo::Piece(i) => i,
-            info_board::PosInfo::PieceHit(_) => return false,
-        };
-
-        let origin_ins = match board.get(orig_x, orig_y) {
-            info_board::PosInfo::Piece(i) | info_board::PosInfo::PieceHit(i) => i,
-            info => panic!(
-                "there is no origin piece at position: {}/{}, info is: '{:?}'",
-                orig_x, orig_y, info
-            ),
-        };
-
-        if target_ins.player != origin_ins.player {
-            let info = info_board::PosInfo::PieceHit(target_ins.clone());
-            board.set(target_x, target_y, info);
-        }
-
-        return true;
-    }
 }
 
-#[derive(Debug)]
-enum Direction {
-    North,
-    NorthEast,
-    East,
-    SouthEast,
-    South,
-    SouthWest,
-    West,
-    NorthWest,
+const fn generate_to_edge_map() -> ToEdgeOffset {
+    const fn min(left: u8, right: u8) -> u8 {
+        if left < right {
+            return left;
+        }
+
+        right
+    }
+
+    let mut map: ToEdgeOffset = [[0; 8]; Board::SIZE as usize];
+
+    let mut file = 0;
+    let mut rank = 0;
+
+    while file < Board::WIDTH {
+        while rank < Board::HEIGHT {
+            let idx = (rank + file * Board::HEIGHT) as usize;
+            let to_north = file;
+            let to_east = Board::WIDTH - 1 - rank;
+            let to_south = Board::HEIGHT - 1 - file;
+            let to_west = rank;
+
+            map[idx][DIR_NORTH] = to_north;
+            map[idx][DIR_NORTH_EAST] = min(to_north, to_east);
+            map[idx][DIR_EAST] = to_east;
+            map[idx][DIR_SOUTH_EAST] = min(to_south, to_east);
+            map[idx][DIR_SOUTH] = to_south;
+            map[idx][DIR_SOUTH_WEST] = min(to_south, to_west);
+            map[idx][DIR_WEST] = to_west;
+            map[idx][DIR_NORTH_WEST] = min(to_north, to_west);
+
+            rank += 1;
+        }
+
+        file += 1;
+        rank = 0;
+    }
+
+    map
+}
+
+// TODO: Eventually this function should not be needed anymore, if all of the code
+// is using the index instead of x/y.
+const fn x_y_to_idx(x: i8, y: i8) -> usize {
+    y as usize * Board::HEIGHT as usize + x as usize
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Color;
+
+    use super::*;
+
+    #[test]
+    fn bishop_moves() {
+        let mut board = InfoBoard::new(Color::Black, Color::White);
+        board.set_by_idx(37, ins(Player::You, Piece::Bishop));
+
+        {
+            let mut board = board.clone();
+            Piece::add_bishop_moves_to_board(37, &mut board);
+
+            assert_moves(&board, &[1, 10, 19, 23, 28, 30, 44, 46, 51, 55, 58]);
+        }
+
+        {
+            let mut board = board.clone();
+            board.set_by_idx(28, ins(Player::You, Piece::Pawn));
+            board.set_by_idx(30, ins(Player::Opponent, Piece::Pawn));
+
+            Piece::add_bishop_moves_to_board(37, &mut board);
+
+            assert_moves(&board, &[30, 44, 46, 51, 55, 58]);
+        }
+    }
+
+    #[test]
+    fn king_moves() {
+        let mut board = InfoBoard::new(Color::Black, Color::White);
+        board.set_by_idx(36, ins(Player::You, Piece::King));
+
+        {
+            let mut board = board.clone();
+            Piece::add_king_moves_to_board(36, &mut board);
+
+            assert_moves(&board, &[27, 28, 29, 35, 37, 43, 44, 45]);
+        }
+
+        {
+            let mut board = board.clone();
+            board.set_by_idx(35, ins(Player::You, Piece::Pawn));
+            board.set_by_idx(37, ins(Player::Opponent, Piece::Pawn));
+
+            Piece::add_king_moves_to_board(36, &mut board);
+
+            assert_moves(&board, &[27, 28, 29, 37, 43, 44, 45]);
+        }
+
+        {
+            // Check that moves are correctly added in the bottom left corner
+            // (out of bounds check).
+
+            let mut board = InfoBoard::new(Color::Black, Color::White);
+            board.set_by_idx(56, ins(Player::You, Piece::King));
+
+            Piece::add_king_moves_to_board(56, &mut board);
+
+            assert_moves(&board, &[48, 49, 57]);
+        }
+
+        {
+            // Check that moves are correctly added in the top right corner
+            // (out of bounds check).
+
+            let mut board = InfoBoard::new(Color::Black, Color::White);
+            board.set_by_idx(7, ins(Player::You, Piece::King));
+
+            Piece::add_king_moves_to_board(7, &mut board);
+
+            assert_moves(&board, &[6, 14, 15]);
+        }
+    }
+
+    #[test]
+    fn king_moves_castle_king_was_moves() {
+        let mut king_ins = PieceInstance::new(Player::You, Piece::King);
+        king_ins.was_moved = true;
+        let mut board = InfoBoard::new(Color::Black, Color::White);
+        board.set_by_idx(56, ins(Player::You, Piece::Rook));
+        board.set_by_idx(60, PosInfo::Piece(king_ins));
+        board.set_by_idx(63, ins(Player::You, Piece::Rook));
+
+        Piece::add_king_moves_to_board(60, &mut board);
+
+        assert_moves(&board, &[51, 52, 53, 59, 61]);
+    }
+
+    #[test]
+    fn king_moves_castle_west_rook_was_moved() {
+        let mut west_rook = PieceInstance::new(Player::You, Piece::Rook);
+        west_rook.was_moved = true;
+        let east_rook = PieceInstance::new(Player::You, Piece::Rook);
+        let mut board = InfoBoard::new(Color::Black, Color::White);
+
+        board.set_by_idx(56, PosInfo::Piece(west_rook));
+        board.set_by_idx(
+            60,
+            PosInfo::Piece(PieceInstance::new(Player::You, Piece::King)),
+        );
+        board.set_by_idx(63, PosInfo::Piece(east_rook));
+
+        Piece::add_king_moves_to_board(60, &mut board);
+
+        assert_moves(&board, &[51, 52, 53, 59, 61, 62]);
+    }
+
+    #[test]
+    fn king_moves_castle_east_rook_was_moved() {
+        let west_rook = PieceInstance::new(Player::You, Piece::Rook);
+        let mut east_rook = PieceInstance::new(Player::You, Piece::Rook);
+        east_rook.was_moved = true;
+        let mut board = InfoBoard::new(Color::Black, Color::White);
+
+        board.set_by_idx(56, PosInfo::Piece(west_rook));
+        board.set_by_idx(
+            60,
+            PosInfo::Piece(PieceInstance::new(Player::You, Piece::King)),
+        );
+        board.set_by_idx(63, PosInfo::Piece(east_rook));
+
+        Piece::add_king_moves_to_board(60, &mut board);
+
+        assert_moves(&board, &[51, 52, 53, 58, 59, 61]);
+    }
+
+    #[test]
+    fn king_moves_castle_west_you() {
+        let mut board = InfoBoard::new(Color::Black, Color::White);
+        board.set_by_idx(
+            60,
+            PosInfo::Piece(PieceInstance::new(Player::You, Piece::King)),
+        );
+        board.set_by_idx(
+            56,
+            PosInfo::Piece(PieceInstance::new(Player::You, Piece::Rook)),
+        );
+
+        Piece::add_king_moves_to_board(60, &mut board);
+
+        assert_moves(&board, &[51, 52, 53, 58, 59, 61]);
+    }
+
+    #[test]
+    fn king_moves_castle_west_opponent() {
+        let mut board = InfoBoard::new(Color::Black, Color::White);
+        board.set_by_idx(
+            4,
+            PosInfo::Piece(PieceInstance::new(Player::Opponent, Piece::King)),
+        );
+        board.set_by_idx(
+            0,
+            PosInfo::Piece(PieceInstance::new(Player::Opponent, Piece::Rook)),
+        );
+
+        Piece::add_king_moves_to_board(4, &mut board);
+
+        assert_moves(&board, &[2, 3, 5, 11, 12, 13]);
+    }
+
+    #[test]
+    fn king_moves_castle_east_you() {
+        let mut board = InfoBoard::new(Color::Black, Color::White);
+        board.set_by_idx(
+            60,
+            PosInfo::Piece(PieceInstance::new(Player::You, Piece::King)),
+        );
+        board.set_by_idx(
+            63,
+            PosInfo::Piece(PieceInstance::new(Player::You, Piece::Rook)),
+        );
+
+        Piece::add_king_moves_to_board(60, &mut board);
+
+        assert_moves(&board, &[51, 52, 53, 59, 61, 62]);
+    }
+
+    #[test]
+    fn king_moves_castle_east_opponent() {
+        let mut board = InfoBoard::new(Color::Black, Color::White);
+        board.set_by_idx(
+            4,
+            PosInfo::Piece(PieceInstance::new(Player::Opponent, Piece::King)),
+        );
+        board.set_by_idx(
+            7,
+            PosInfo::Piece(PieceInstance::new(Player::Opponent, Piece::Rook)),
+        );
+
+        Piece::add_king_moves_to_board(4, &mut board);
+
+        assert_moves(&board, &[3, 5, 6, 11, 12, 13]);
+    }
+
+    #[test]
+    fn knight_moves() {
+        let mut board = InfoBoard::new(Color::Black, Color::White);
+        board.set_by_idx(36, ins(Player::You, Piece::Knight));
+
+        {
+            let mut board = board.clone();
+            Piece::add_knight_moves_to_board(4, 4, &mut board);
+
+            assert_moves(&board, &[19, 21, 26, 30, 42, 51, 53, 46]);
+        }
+
+        {
+            let mut board = board.clone();
+            board.set_by_idx(19, ins(Player::You, Piece::Pawn));
+            board.set_by_idx(21, ins(Player::Opponent, Piece::Pawn));
+
+            Piece::add_knight_moves_to_board(4, 4, &mut board);
+
+            assert_moves(&board, &[21, 26, 30, 42, 51, 53, 46]);
+        }
+
+        {
+            // Check that moves are correctly added in the top left corner
+            // (out of bounds check).
+
+            let mut board = InfoBoard::new(Color::Black, Color::White);
+            board.set_by_idx(0, ins(Player::You, Piece::Knight));
+
+            Piece::add_knight_moves_to_board(0, 0, &mut board);
+
+            assert_moves(&board, &[10, 17]);
+        }
+
+        {
+            // Check that moves are correctly added in the top right corner
+            // (out of bounds check).
+
+            let mut board = InfoBoard::new(Color::Black, Color::White);
+            board.set_by_idx(7, ins(Player::You, Piece::Knight));
+
+            Piece::add_knight_moves_to_board(7, 0, &mut board);
+
+            assert_moves(&board, &[13, 22]);
+        }
+
+        {
+            // Check that moves are correctly added in the bottom left corner
+            // (out of bounds check).
+
+            let mut board = InfoBoard::new(Color::Black, Color::White);
+            board.set_by_idx(56, ins(Player::You, Piece::Knight));
+
+            Piece::add_knight_moves_to_board(0, 7, &mut board);
+
+            assert_moves(&board, &[41, 50]);
+        }
+
+        {
+            // Check that moves are correctly added in the bottom right corner
+            // (out of bounds check).
+
+            let mut board = InfoBoard::new(Color::Black, Color::White);
+            board.set_by_idx(63, ins(Player::You, Piece::Knight));
+
+            Piece::add_knight_moves_to_board(7, 7, &mut board);
+
+            assert_moves(&board, &[46, 53]);
+        }
+
+        {
+            // Check that moves are correctly added 1 offset the top left corner
+            // (out of bounds check).
+
+            let mut board = InfoBoard::new(Color::Black, Color::White);
+            board.set_by_idx(9, ins(Player::You, Piece::Knight));
+
+            Piece::add_knight_moves_to_board(1, 1, &mut board);
+
+            assert_moves(&board, &[3, 19, 24, 26]);
+        }
+
+        {
+            // Check that moves are correctly added 1 offset the bottom right corner
+            // (out of bounds check).
+
+            let mut board = InfoBoard::new(Color::Black, Color::White);
+            board.set_by_idx(54, ins(Player::You, Piece::Knight));
+
+            Piece::add_knight_moves_to_board(6, 6, &mut board);
+
+            assert_moves(&board, &[37, 39, 44, 60]);
+        }
+    }
+
+    #[test]
+    fn pawn_moves() {
+        let board = InfoBoard::new(Color::Black, Color::White);
+
+        {
+            let mut board = board.clone();
+            let pawn_ins = PieceInstance::new(Player::You, Piece::Pawn);
+            board.set_by_idx(48, PosInfo::Piece(pawn_ins.clone()));
+
+            Piece::add_pawn_moves_to_board(48, &pawn_ins, &mut board);
+
+            assert_moves(&board, &[32, 40]);
+        }
+
+        {
+            let mut pawn_ins = PieceInstance::new(Player::You, Piece::Pawn);
+            pawn_ins.was_moved = true;
+            let mut board = board.clone();
+            board.set_by_idx(40, PosInfo::Piece(pawn_ins.clone()));
+
+            Piece::add_pawn_moves_to_board(40, &pawn_ins, &mut board);
+
+            assert_moves(&board, &[32]);
+        }
+
+        {
+            let mut pawn_ins = PieceInstance::new(Player::You, Piece::Pawn);
+            pawn_ins.was_moved = true;
+            let mut board = board.clone();
+            board.set_by_idx(36, PosInfo::Piece(pawn_ins.clone()));
+            board.set_by_idx(27, ins(Player::Opponent, Piece::Pawn));
+            board.set_by_idx(29, ins(Player::Opponent, Piece::Pawn));
+
+            Piece::add_pawn_moves_to_board(36, &pawn_ins, &mut board);
+
+            assert_moves(&board, &[27, 28, 29]);
+        }
+
+        {
+            let mut pawn_ins = PieceInstance::new(Player::You, Piece::Pawn);
+            pawn_ins.was_moved = true;
+            let mut board = board.clone();
+            board.set_by_idx(36, PosInfo::Piece(pawn_ins.clone()));
+            board.set_by_idx(27, ins(Player::You, Piece::Pawn));
+
+            Piece::add_pawn_moves_to_board(36, &pawn_ins, &mut board);
+
+            assert_moves(&board, &[28]);
+        }
+
+        // TODO: out of bounds check
+
+        // TODO: tests for en passant
+    }
+
+    #[test]
+    fn queen_moves() {
+        let mut board = InfoBoard::new(Color::Black, Color::White);
+        board.set_by_idx(36, ins(Player::You, Piece::Queen));
+
+        {
+            let mut board = board.clone();
+            Piece::add_queen_moves_to_board(36, &mut board);
+
+            assert_moves(
+                &board,
+                &[
+                    0, 4, 9, 12, 15, 18, 20, 22, 27, 28, 29, 32, 33, 34, 35, 37, 38, 39, 43, 44,
+                    45, 50, 52, 54, 57, 60, 63,
+                ],
+            );
+        }
+
+        {
+            let mut board = board.clone();
+            board.set_by_idx(35, ins(Player::You, Piece::Pawn));
+            board.set_by_idx(37, ins(Player::Opponent, Piece::Pawn));
+
+            Piece::add_queen_moves_to_board(36, &mut board);
+
+            assert_moves(
+                &board,
+                &[
+                    0, 4, 9, 12, 15, 18, 20, 22, 27, 28, 29, 37, 43, 44, 45, 50, 52, 54, 57, 60, 63,
+                ],
+            );
+        }
+    }
+
+    #[test]
+    fn rook_moves() {
+        let mut board = InfoBoard::new(Color::Black, Color::White);
+        board.set_by_idx(36, ins(Player::You, Piece::Rook));
+
+        {
+            let mut board = board.clone();
+            Piece::add_rook_moves_to_board(36, &mut board);
+
+            assert_moves(
+                &board,
+                &[4, 12, 20, 28, 32, 33, 34, 35, 37, 38, 39, 44, 52, 60],
+            );
+        }
+
+        {
+            let mut board = board.clone();
+            board.set_by_idx(35, ins(Player::You, Piece::Pawn));
+            board.set_by_idx(37, ins(Player::Opponent, Piece::Pawn));
+
+            Piece::add_rook_moves_to_board(36, &mut board);
+
+            assert_moves(&board, &[4, 12, 20, 28, 37, 44, 52, 60]);
+        }
+    }
+
+    fn assert_moves(board: &InfoBoard, moves: &[usize]) {
+        let mut board_moves: Vec<usize> = board
+            .moves
+            .iter()
+            .map(|pos_info| x_y_to_idx(pos_info.0, pos_info.1))
+            .collect();
+        board_moves.sort();
+
+        let mut moves = moves.to_owned();
+        moves.sort();
+
+        let mut expected = InfoBoard::new(board.you_color.clone(), board.opponent_color.clone());
+
+        for move_idx in &moves {
+            expected.set_by_idx(*move_idx, PosInfo::Move);
+        }
+
+        assert_eq!(
+            board_moves, moves,
+            "expected moves {}, but found {}",
+            expected, board
+        );
+    }
+
+    fn ins(player: Player, piece: Piece) -> PosInfo {
+        let mut ins = PieceInstance::new(player, piece);
+        ins.was_moved = true;
+
+        PosInfo::Piece(ins)
+    }
 }
