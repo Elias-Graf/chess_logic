@@ -2,10 +2,10 @@ use std::fmt::{self, Display};
 
 use crate::{Board, Piece};
 
+pub const RESET_ANSI: &str = "\u{001b}[0m";
+
 impl Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        const RESET: &str = "\u{001b}[0m";
-
         let mut val = "\n".to_owned();
 
         for (idx, _) in (&self.poses).iter().enumerate() {
@@ -19,7 +19,7 @@ impl Display for Board {
 
             val.push_str(&format!(
                 "{}{}{: ^4}{}",
-                fg_color, bg_color, piece_symbol, RESET
+                fg_color, bg_color, piece_symbol, RESET_ANSI
             ));
         }
 
@@ -27,7 +27,7 @@ impl Display for Board {
     }
 }
 
-fn get_bg_color_of(idx: usize) -> &'static str {
+pub const fn get_bg_color_of(idx: usize) -> &'static str {
     const BG_BLACK: &str = "\u{001b}[48;5;126m";
     const BG_WHITE: &str = "\u{001b}[48;5;145m";
 
