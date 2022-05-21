@@ -218,6 +218,13 @@ impl Piece {
             );
         }
 
+        for (en_passant_src, en_passant_hit) in &board.piece_eligible_for_en_passant {
+            moves.push((
+                *en_passant_src,
+                (*en_passant_hit as i8 + DIR_OFFSETS[dir]) as usize,
+            ));
+        }
+
         moves
     }
 
@@ -338,6 +345,15 @@ impl Piece {
         }
     }
 
+    /// Calculates all possible moves for the piece at the source position, and
+    /// checks if it can reach the specified hit position.
+    pub fn is_valid_move(mv: Move, board: &Board) -> bool {
+        let (src_idx, _) = mv;
+        let moves = Self::get_moves_of_piece_at(src_idx, &board);
+
+        moves.contains(&mv)
+    }
+
     fn push_move_if_empty(src_idx: usize, hit_idx: usize, moves: &mut Vec<Move>, board: &Board) {
         if board.get(hit_idx).is_some() {
             return;
@@ -437,7 +453,7 @@ const fn generate_to_edge_map() -> ToEdgeOffset {
 
 #[cfg(test)]
 mod tests {
-    use crate::{display_board, Color, board::PieceInstance};
+    use crate::{board::PieceInstance, display_board, Color};
 
     use super::*;
 
@@ -624,6 +640,63 @@ mod tests {
         board.set(47, Some(pawn_ins));
 
         assert_moves_eq(&Piece::get_moves_for_pawn_at(47, &board), 47, &[39]);
+    }
+
+    #[test]
+    fn pawn_moves_en_passant_you_west() {
+        let mut board = board();
+        board.set(9, ins_opp(Piece::Pawn));
+        board.set(24, ins_you(Piece::Pawn));
+
+        board.do_move((9, 25));
+
+        assert_moves_eq(&Piece::get_moves_for_pawn_at(24, &board), 24, &[16, 17]);
+    }
+
+    #[test]
+    fn pawn_moves_en_passant_you_east() {
+        let mut board = board();
+        board.set(9, ins_opp(Piece::Pawn));
+        board.set(26, ins_you(Piece::Pawn));
+
+        board.do_move((9, 25));
+
+        assert_moves_eq(&Piece::get_moves_for_pawn_at(26, &board), 26, &[17, 18]);
+    }
+
+    #[test]
+    fn pawn_moves_en_passant_opponent_west() {
+        let mut board = board();
+        board.set(32, ins_opp(Piece::Pawn));
+        board.set(49, ins_you(Piece::Pawn));
+
+        board.do_move((49, 33));
+
+        assert_moves_eq(&Piece::get_moves_for_pawn_at(32, &board), 32, &[40, 41]);
+    }
+
+    #[test]
+    fn pawn_moves_en_passant_opponent_east() {
+        let mut board = board();
+        board.set(34, ins_opp(Piece::Pawn));
+        board.set(49, ins_you(Piece::Pawn));
+
+        board.do_move((49, 33));
+
+        assert_moves_eq(&Piece::get_moves_for_pawn_at(34, &board), 34, &[41, 42]);
+    }
+
+    #[test]
+    fn pawn_move_en_passant_can_only_be_done_in_the_turn_immediately_after() {
+        let mut board = board();
+        board.set(34, ins_opp(Piece::Pawn));
+        board.set(49, ins_you(Piece::Pawn));
+        board.set(63, ins_you(Piece::King));
+
+        board.do_move((49, 33));
+        board.do_move((63, 55));
+
+        assert_moves_eq(&Piece::get_moves_for_pawn_at(34, &board), 34, &[42]);
     }
 
     #[test]

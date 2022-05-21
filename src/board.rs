@@ -1,3 +1,5 @@
+use std::mem;
+
 use crate::{
     piece::{DIR_EAST, DIR_NORTH, DIR_OFFSETS, DIR_SOUTH, DIR_WEST, TO_EDGE_OFFSETS},
     Color, Piece, Player,
@@ -7,8 +9,9 @@ pub type Move = (usize, usize);
 
 #[derive(Clone)]
 pub struct Board {
-    pub poses: [Option<PieceInstance>; Self::SIZE as usize],
     pub opponent_color: Color,
+    pub piece_eligible_for_en_passant: Vec<(usize, usize)>,
+    pub poses: [Option<PieceInstance>; Self::SIZE as usize],
     pub promote_idx: Option<usize>,
     pub selected_idx: Option<usize>,
     pub you_color: Color,
@@ -18,6 +21,25 @@ impl Board {
     pub const HEIGHT: usize = 8;
     pub const WIDTH: usize = 8;
     pub const SIZE: usize = Self::HEIGHT * Self::WIDTH;
+
+    fn check_and_add_en_passant_eligibility(&mut self, src_idx: usize, hit_idx: usize) {
+        let src_y = src_idx / Self::WIDTH;
+        let hit_y = hit_idx / Self::WIDTH;
+
+        let move_could_result_in_en_passant = src_y.abs_diff(hit_y) == 2;
+        if !move_could_result_in_en_passant {
+            return;
+        }
+
+        for hit_pos in [
+            (hit_idx as i8 + DIR_OFFSETS[DIR_WEST]) as usize,
+            (hit_idx as i8 + DIR_OFFSETS[DIR_EAST]) as usize,
+        ] {
+            if self.get(hit_pos).is_some() {
+                self.piece_eligible_for_en_passant.push((hit_pos, hit_idx));
+            }
+        }
+    }
 
     /// Check if a given piece is a pawn, and if it reached the end of the board.
     /// If the end of the board was reached, the position will be saved in promote
@@ -37,6 +59,29 @@ impl Board {
         }
     }
 
+    /// Execute a move.
+    /// Notably this does not check the moves validity, (if you want to do that use
+    /// [`Piece::is_valid_move()`]), but it does...
+    ///
+    /// # Panics
+    /// If no piece is at the source index.
+    pub fn do_move(&mut self, mv: Move) {
+        let (src_idx, hit_idx) = mv;
+        let src_ins = mem::replace(&mut self.poses[src_idx], None);
+
+        if src_ins.is_none() {
+            panic!(
+                "cannot execute move '{:?}' because there is no piece at the source index",
+                mv
+            );
+        }
+
+        self.remove_old_en_passant_moves();
+        self.check_and_add_en_passant_eligibility(src_idx, hit_idx);
+
+        self.set(hit_idx, src_ins);
+    }
+
     pub fn get(&self, idx: usize) -> &Option<PieceInstance> {
         &self.poses[idx]
     }
@@ -48,25 +93,8 @@ impl Board {
         }
     }
 
+    #[deprecated(note = "just use `Piece::get_moves_of_piece_at()` instead")]
     pub fn get_moves_of_selected(&self) -> Vec<Move> {
-        // let mut info_board: InfoBoard = self.into();
-
-        // let idx = match self.selected_idx {
-        //     Some(i) => i,
-        //     None => panic!("cannot get moves of selected as nothing was selected"),
-        // };
-
-        // Piece::add_moves_for_piece(idx, &mut info_board);
-
-        // if let Some(ins) = &self.poses[idx] {
-        //     if ins.is_eligible_for_en_passant {
-        //         Piece::add_en_passant_moves_to_board(idx, ins, &mut info_board);
-        //     }
-        // }
-        // self.remove_moves_that_result_in_check(idx, &mut info_board);
-
-        // info_board
-
         let idx = match self.selected_idx {
             Some(i) => i,
             None => panic!("cannot get move of selected, as nothing is selected"),
@@ -111,25 +139,6 @@ impl Board {
         todo!()
     }
 
-    fn make_piece_eligible_for_en_passant_if_appropriate(
-        &mut self,
-        moved_ins: &PieceInstance,
-        moved_distance: usize,
-        check_idx: usize,
-    ) {
-        if moved_distance != 2 {
-            return;
-        }
-
-        if !matches!(moved_ins.piece, Piece::Pawn) {
-            return;
-        }
-
-        if let Some(ins) = self.get_mut(check_idx) {
-            ins.is_eligible_for_en_passant = true;
-        }
-    }
-
     fn move_rook_for_castle(&mut self, king_idx: usize, king_x_to: i8) {
         // let (rook_x_from, rook_x_to) = if king_x_from - king_x_to < 0 {
         //     (Self::WIDTH as i8 - 1, king_x_from + 1)
@@ -152,6 +161,7 @@ impl Board {
     /// One may select a piece using [`Self::set_selected()`].
     ///
     /// Returns `true` if the piece was moved.
+    #[deprecated(note = "use `Self::do_move()` instead")]
     pub fn move_selected_to(&mut self, to_idx: usize) -> bool {
         if let Some(promote_idx) = self.promote_idx {
             panic!(
@@ -178,29 +188,8 @@ impl Board {
             return false;
         }
 
-        // En passant is only valid for the turn immediately after.
-        self.remove_old_en_passant();
-
         let selected_x = from_idx % Board::WIDTH;
-        let selected_y = from_idx / Board::HEIGHT;
         let to_x = to_idx % Board::WIDTH;
-        let to_y = to_idx / Board::HEIGHT;
-        let moved_distance = selected_y.abs_diff(to_y);
-
-        self.make_piece_eligible_for_en_passant_if_appropriate(
-            &move_ins,
-            moved_distance,
-            (to_idx as i8 + DIR_OFFSETS[DIR_EAST]) as usize,
-        );
-        self.make_piece_eligible_for_en_passant_if_appropriate(
-            &move_ins,
-            moved_distance,
-            (to_idx as i8 + DIR_OFFSETS[DIR_WEST]) as usize,
-        );
-
-        if self.move_was_successful_en_passant(to_idx, &move_ins) {
-            self.remove_piece_passed_by_en_passant(to_idx, &move_ins);
-        }
 
         move_ins.was_moved = true;
 
@@ -221,33 +210,13 @@ impl Board {
         true
     }
 
-    fn get_wander_dir_of(&self, player: &Player) -> usize {
-        match player {
-            Player::You => DIR_NORTH,
-            Player::Opponent => DIR_SOUTH,
-        }
-    }
-
-    fn move_was_successful_en_passant(&mut self, to_idx: usize, ins: &PieceInstance) -> bool {
-        if !matches!(ins.piece, Piece::Pawn) {
-            return false;
-        }
-
-        let moved_to_empty_square = matches!(self.poses[to_idx], None);
-        let moved_behind_pawn = self.poses
-            [(to_idx as i8 - DIR_OFFSETS[self.get_wander_dir_of(&ins.player)]) as usize]
-            .as_ref()
-            .map_or(false, |behind| matches!(behind.piece, Piece::Pawn));
-
-        moved_to_empty_square && moved_behind_pawn && ins.is_eligible_for_en_passant
-    }
-
     pub fn new(you_color: Color, opponent_color: Color) -> Self {
         // https://github.com/rust-lang/rust/issues/44796
-        const INIT: Option<PieceInstance> = None;
+        const INIT_POS: Option<PieceInstance> = None;
         Self {
-            poses: [INIT; Self::SIZE as usize],
             opponent_color,
+            piece_eligible_for_en_passant: Vec::with_capacity(2),
+            poses: [INIT_POS; Self::SIZE as usize],
             promote_idx: None,
             selected_idx: None,
             you_color,
@@ -336,19 +305,8 @@ impl Board {
         self.promote_idx = None
     }
 
-    fn remove_old_en_passant(&mut self) {
-        for pos in &mut self.poses {
-            if let Some(ins) = pos {
-                ins.is_eligible_for_en_passant = false;
-            }
-        }
-    }
-
-    fn remove_piece_passed_by_en_passant(&mut self, to_idx: usize, ins: &PieceInstance) {
-        self.set(
-            (to_idx as i8 - DIR_OFFSETS[self.get_wander_dir_of(&ins.player)]) as usize,
-            None,
-        )
+    fn remove_old_en_passant_moves(&mut self) {
+        self.piece_eligible_for_en_passant.clear()
     }
 
     pub fn set(&mut self, idx: usize, ins: Option<PieceInstance>) {
@@ -362,10 +320,6 @@ impl Board {
 
 #[derive(Clone, Debug)]
 pub struct PieceInstance {
-    /// This flag determines if a pawn can make the en passant move this round.
-    /// It only makes sense when used together with an instance of a pawn, and is
-    /// otherwise ignored.
-    pub is_eligible_for_en_passant: bool,
     pub piece: Piece,
     pub player: Player,
     pub was_moved: bool,
@@ -374,7 +328,6 @@ pub struct PieceInstance {
 impl PieceInstance {
     pub fn new(player: Player, piece: Piece) -> Self {
         Self {
-            is_eligible_for_en_passant: false,
             piece,
             player,
             was_moved: false,
@@ -460,197 +413,6 @@ mod tests {
         //     info_board.get(58)
         // );
         panic!("not implemented");
-    }
-
-    #[test]
-    fn en_passant_check_is_not_done_if_it_is_outside_the_board() {
-        let mut board = Board::new(Color::Black, Color::White);
-        board.set(56, ins(Player::You, Piece::King));
-        board.set(48, Some(PieceInstance::new(Player::You, Piece::Pawn)));
-        board.set(7, ins(Player::Opponent, Piece::King));
-        board.set(33, ins(Player::Opponent, Piece::Pawn));
-
-        board.set_selected(48);
-        assert!(board.move_selected_to(32));
-    }
-
-    #[test]
-    fn en_passant_your_east_pawn() {
-        let mut board = Board::new(Color::Black, Color::White);
-        board.set(56, ins(Player::You, Piece::King));
-        board.set(26, ins(Player::You, Piece::Pawn));
-        board.set(7, ins(Player::Opponent, Piece::King));
-        board.set(11, Some(PieceInstance::new(Player::Opponent, Piece::Pawn)));
-
-        board.set_selected(11);
-        board.move_selected_to(27);
-
-        board.set_selected(26);
-        assert!(
-            !board.move_selected_to(17),
-            "en passant was added to the wrong side"
-        );
-
-        assert!(
-            board.move_selected_to(19),
-            "east en passant move was not accepted"
-        );
-        assert!(
-            matches!(board.get(27), None),
-            "east en passant pawn was not removed"
-        );
-    }
-
-    #[test]
-    fn en_passant_your_west_pawn() {
-        let mut board = Board::new(Color::Black, Color::White);
-        board.set(56, ins(Player::You, Piece::King));
-        board.set(28, ins(Player::You, Piece::Pawn));
-        board.set(7, ins(Player::Opponent, Piece::King));
-        board.set(11, Some(PieceInstance::new(Player::Opponent, Piece::Pawn)));
-
-        board.set_selected(11);
-        board.move_selected_to(27);
-
-        board.set_selected(28);
-        assert!(
-            !board.move_selected_to(21),
-            "west en passant was added to the wrong side",
-        );
-        assert!(
-            board.move_selected_to(19),
-            "west en passant move was not accepted"
-        );
-        assert!(
-            matches!(board.get(27), None),
-            "west en passant pawn was not removed"
-        );
-    }
-
-    #[test]
-    fn en_passant_opponent_east_pawn() {
-        let mut board = Board::new(Color::Black, Color::White);
-        board.set(56, ins(Player::You, Piece::King));
-        board.set(51, Some(PieceInstance::new(Player::You, Piece::Pawn)));
-        board.set(7, ins(Player::Opponent, Piece::King));
-        board.set(34, ins(Player::Opponent, Piece::Pawn));
-
-        board.set_selected(51);
-        board.move_selected_to(35);
-
-        board.set_selected(34);
-        assert!(
-            !board.move_selected_to(41),
-            "east en passant was added to the wrong side",
-        );
-        assert!(
-            board.move_selected_to(43),
-            "east en passant move was not accepted"
-        );
-        assert!(
-            matches!(board.get(35), None),
-            "east en passant pawn was not removed"
-        );
-    }
-
-    #[test]
-    fn en_passant_opponent_west_pawn() {
-        let mut board = Board::new(Color::Black, Color::White);
-        board.set(56, ins(Player::You, Piece::King));
-        board.set(51, Some(PieceInstance::new(Player::You, Piece::Pawn)));
-        board.set(7, ins(Player::Opponent, Piece::King));
-        board.set(36, ins(Player::Opponent, Piece::Pawn));
-
-        board.set_selected(51);
-        board.move_selected_to(35);
-
-        board.set_selected(36);
-        assert!(
-            !board.move_selected_to(45),
-            "west en passant was added to the wrong side",
-        );
-        assert!(
-            board.move_selected_to(43),
-            "west en passant move was not accepted"
-        );
-        assert!(
-            matches!(board.get(35), None),
-            "west en passant pawn was not removed"
-        );
-    }
-
-    #[test]
-    fn en_passant_is_only_added_when_piece_is_eligible() {
-        let mut board = Board::new(Color::Black, Color::White);
-        board.set(56, ins(Player::You, Piece::King));
-        board.set(43, ins(Player::You, Piece::Pawn));
-        board.set(53, ins(Player::You, Piece::Rook));
-        board.set(7, ins(Player::Opponent, Piece::King));
-        board.set(36, ins(Player::Opponent, Piece::Pawn));
-
-        board.set_selected(43);
-        board.move_selected_to(35);
-
-        board.set_selected(36);
-        assert!(
-            !board.move_selected_to(43),
-            "en passant was added even though the enemy only moved one square"
-        );
-
-        board.set_selected(53);
-        board.move_selected_to(37);
-
-        board.set_selected(36);
-        assert!(
-            !board.move_selected_to(45),
-            "en passant was added event though moved piece wasn't a pawn"
-        );
-    }
-
-    #[test]
-    fn en_passant_can_only_be_done_immediately_after_the_opponent_piece_was_moved() {
-        let mut board = Board::new(Color::Black, Color::White);
-        board.set(56, ins(Player::You, Piece::King));
-        board.set(51, Some(PieceInstance::new(Player::You, Piece::Pawn)));
-        board.set(7, ins(Player::Opponent, Piece::King));
-        board.set(36, ins(Player::Opponent, Piece::Pawn));
-
-        board.set_selected(51);
-        board.move_selected_to(35);
-
-        board.set_selected(7);
-        board.move_selected_to(15);
-
-        board.set_selected(36);
-        assert!(!board.move_selected_to(43));
-    }
-
-    #[test]
-    fn en_passant_pieces_are_only_taken_if_the_move_actually_was_one() {
-        let mut board = Board::new(Color::Black, Color::White);
-        board.set(56, ins(Player::You, Piece::King));
-        board.set(49, ins(Player::You, Piece::Bishop));
-        board.set(7, ins(Player::Opponent, Piece::King));
-        board.set(36, ins(Player::Opponent, Piece::Pawn));
-
-        board.set_selected(49);
-        board.move_selected_to(28);
-
-        assert!(matches!(board.get(36), Some(_)));
-    }
-
-    #[test]
-    fn en_passant_move_check_is_only_done_for_pawn() {
-        // If the checks are done for all pieces (which in itself would be fine),
-        // it is possible that they are done for pieces on the end of the board,
-        // which results in an out of bound access.
-
-        let mut board = Board::new(Color::Black, Color::White);
-        board.set(56, ins(Player::You, Piece::King));
-        board.set(0, ins(Player::Opponent, Piece::King));
-
-        board.set_selected(0);
-        board.move_selected_to(1);
     }
 
     /// Create a new piece instance.
