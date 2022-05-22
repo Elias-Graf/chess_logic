@@ -1,4 +1,4 @@
-use std::mem;
+use std::{arch::x86_64::_MM_FROUND_TO_POS_INF, mem};
 
 use crate::{
     piece::{DIR_EAST, DIR_NORTH, DIR_OFFSETS, DIR_SOUTH, DIR_WEST, TO_EDGE_OFFSETS},
@@ -111,51 +111,6 @@ impl Board {
         &self.selected_idx
     }
 
-    pub fn is_king_in_check(&self, check_player: &Player) -> bool {
-        // let mut info_board: InfoBoard = self.into();
-        // let mut king_idx = None;
-
-        // for (idx, pos) in self.poses.as_ref().iter().enumerate() {
-        //     let ins = match pos {
-        //         Some(i) => i,
-        //         _ => continue,
-        //     };
-
-        //     if matches!(ins.piece, Piece::King) && &ins.player == check_player {
-        //         king_idx = Some(idx);
-        //     }
-
-        //     if &ins.player != check_player {
-        //         Piece::add_moves_for_piece(idx, &mut info_board);
-        //     }
-        // }
-
-        // let king_idx = king_idx.expect(&format!(
-        //     "could not find king of player: '{:?}'",
-        //     check_player
-        // ));
-
-        // matches!(info_board.get(king_idx), PosInfo::PieceHit(_))
-        todo!()
-    }
-
-    fn move_rook_for_castle(&mut self, king_idx: usize, king_x_to: i8) {
-        // let (rook_x_from, rook_x_to) = if king_x_from - king_x_to < 0 {
-        //     (Self::WIDTH as i8 - 1, king_x_from + 1)
-        // } else {
-        //     (0, king_x_from - 1)
-        // };
-
-        // let rook_instance = match self.get_old(rook_x_from, king_y) {
-        //     Some(rook_instance) => rook_instance.clone(),
-        //     _ => panic!("this function should not be called if no rook is at the castle location"),
-        // };
-
-        // self.set_old(rook_x_from, king_y, None);
-        // self.set_old(rook_x_to, king_y, Some(rook_instance));
-        panic!("currently not implemented")
-    }
-
     // TODO: rework.
     /// Moves the currently selected piece to the specified index (if possible).
     /// One may select a piece using [`Self::set_selected()`].
@@ -188,13 +143,7 @@ impl Board {
             return false;
         }
 
-        let selected_x = from_idx % Board::WIDTH;
-        let to_x = to_idx % Board::WIDTH;
-
         move_ins.was_moved = true;
-
-        let move_is_castle =
-            matches!(move_ins.piece, Piece::King) && selected_x.abs_diff(to_x) == 2;
 
         self.poses[from_idx] = None;
         self.poses[to_idx] = Some(move_ins);
@@ -202,10 +151,6 @@ impl Board {
         self.selected_idx = None;
 
         self.check_if_pawn_needs_promoting(to_idx);
-
-        if move_is_castle {
-            self.move_rook_for_castle(from_idx, to_x as i8);
-        }
 
         true
     }
@@ -221,6 +166,27 @@ impl Board {
             selected_idx: None,
             you_color,
         }
+    }
+
+    pub fn is_pos_attacked_by(&self, pos_idx: usize, attacker: &Player) -> bool {
+        for (iter, pos) in self.poses.iter().enumerate() {
+            let ins = match pos {
+                Some(i) => i,
+                None => continue,
+            };
+
+            if &ins.player != attacker {
+                continue;
+            }
+
+            for (_, hit_idx) in Piece::get_moves_of_piece_at(iter, self) {
+                if pos_idx == hit_idx {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 
     pub fn new_with_standard_formation(you_color: Color, opponent_color: Color) -> Self {
@@ -338,82 +304,6 @@ impl PieceInstance {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn is_king_in_check_you_not_in_check() {
-        let mut board = Board::new(Color::Black, Color::White);
-        board.set(56, ins(Player::You, Piece::King));
-
-        assert!(!board.is_king_in_check(&Player::You));
-    }
-
-    #[test]
-    fn is_king_in_check_you_in_check() {
-        let mut board = Board::new(Color::Black, Color::White);
-        board.set(56, ins(Player::You, Piece::King));
-        board.set(49, ins(Player::Opponent, Piece::Pawn));
-
-        assert!(board.is_king_in_check(&Player::You));
-    }
-
-    #[test]
-    fn is_king_in_check_you_not_in_check_but_opponent_is() {
-        let mut board = Board::new(Color::Black, Color::White);
-        board.set(0, ins(Player::You, Piece::King));
-        board.set(9, ins(Player::You, Piece::Pawn));
-        board.set(2, ins(Player::Opponent, Piece::King));
-
-        assert!(!board.is_king_in_check(&Player::You));
-        assert!(board.is_king_in_check(&Player::Opponent));
-    }
-
-    #[test]
-    fn moves_that_result_in_a_piece_bing_taken_are_added() {
-        // let mut pawn = PieceInstance::new(Player::You, Piece::Pawn);
-        // pawn.was_moved = false;
-
-        // let mut board = Board::new(Color::Black, Color::White);
-        // board.set(49, Some(pawn.clone()));
-        // board.set(0, ins(Player::Opponent, Piece::King));
-        // board.set(13, ins(Player::Opponent, Piece::Bishop));
-
-        // board.selected_idx = Some(13);
-
-        // let info_board = board.get_moves_of_selected();
-
-        // assert!(matches!(info_board.get(41), PosInfo::Move));
-        panic!("not implemented")
-    }
-
-    #[test]
-    fn moves_that_would_result_in_a_check_are_not_added() {
-        // let mut board = Board::new(Color::Black, Color::White);
-
-        // board.set(49, ins(Player::You, Piece::King));
-        // board.set(42, ins(Player::You, Piece::Rook));
-
-        // board.set(35, ins(Player::Opponent, Piece::Bishop));
-        // board.set(58, ins(Player::Opponent, Piece::Rook));
-
-        // board.set_selected(49);
-
-        // let info_board = board.get_moves_of_selected();
-
-        // assert!(matches!(info_board.get(56), PosInfo::None));
-        // assert!(matches!(info_board.get(57), PosInfo::None));
-
-        // board.selected_idx = Some(42);
-
-        // let info_board = board.get_moves_of_selected();
-
-        // assert!(matches!(info_board.get(34), PosInfo::None));
-        // assert!(
-        //     matches!(info_board.get(58), PosInfo::Piece(_)),
-        //     "{:?}",
-        //     info_board.get(58)
-        // );
-        panic!("not implemented");
-    }
 
     /// Create a new piece instance.
     ///

@@ -12,6 +12,15 @@ pub enum Player {
     Opponent,
 }
 
+impl Player {
+    pub fn get_opposing(player: &Player) -> Player {
+        match player {
+            Player::You => Player::Opponent,
+            Player::Opponent => Player::You,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Color {
     Black,
