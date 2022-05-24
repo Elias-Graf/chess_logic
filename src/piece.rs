@@ -110,7 +110,7 @@ impl Piece {
 
             let mut west_invalid = false;
             for i in ((west_rook_idx as i8 + DIR_OFFSETS[DIR_EAST]) as usize)..king_idx {
-                if board.is_pos_attacked_by(i, &attacker) || board.get(i).is_some() {
+                if board.get(i).is_some() || board.is_pos_attacked_by(i, &attacker) {
                     west_invalid = true;
                     break;
                 }
@@ -132,7 +132,7 @@ impl Piece {
 
             let mut east_invalid = false;
             for i in ((king_idx as i8 + DIR_OFFSETS[DIR_EAST]) as usize)..east_rook_idx {
-                if board.is_pos_attacked_by(i, &attacker) || board.get(i).is_some() {
+                if board.get(i).is_some() || board.is_pos_attacked_by(i, &attacker) {
                     east_invalid = true;
                 }
             }
