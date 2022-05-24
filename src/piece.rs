@@ -387,7 +387,7 @@ impl Piece {
         }
     }
 
-    pub fn get_symbol(piece: &Self) -> &str {
+    pub const fn get_symbol_of(piece: &Self) -> &str {
         match piece {
             Self::Bishop => "BI",
             Self::King => "KI",

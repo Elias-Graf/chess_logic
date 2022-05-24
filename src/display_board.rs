@@ -38,7 +38,7 @@ pub const fn get_bg_color_of(idx: usize) -> &'static str {
     BG_BLACK
 }
 
-fn get_fg_color_of(idx: usize, board: &Board) -> &str {
+pub fn get_fg_color_of(idx: usize, board: &Board) -> &str {
     const FG_BLACK: &str = "\u{001b}[38;5;0m";
     const FG_WHITE: &str = "\u{001b}[38;5;15m";
 
@@ -51,9 +51,9 @@ fn get_fg_color_of(idx: usize, board: &Board) -> &str {
     }
 }
 
-fn get_piece_symbol_at(idx: usize, board: &Board) -> &str {
+pub fn get_piece_symbol_at(idx: usize, board: &Board) -> &str {
     match board.get(idx) {
-        Some(ins) => Piece::get_symbol(&ins.piece),
+        Some(ins) => Piece::get_symbol_of(&ins.piece),
         None => "",
     }
 }

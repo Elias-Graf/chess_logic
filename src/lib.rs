@@ -1,6 +1,6 @@
 pub mod board;
+pub mod display_board;
 
-mod display_board;
 mod piece;
 
 pub use board::Board;
