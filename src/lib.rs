@@ -1,5 +1,6 @@
 pub mod board;
 pub mod display_board;
+pub mod fen;
 
 mod piece;
 
