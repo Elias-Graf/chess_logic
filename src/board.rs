@@ -152,6 +152,15 @@ impl Board {
                 None => continue,
             };
 
+            // BUG: Recursive check for `is_pos_attacked_by`.
+            // The king moves check (for castling) if any of the squares involved
+            // in the castling are attacked by the opponent.
+            // The king is thus currently excluded from the check, as it would just
+            // keep going back and forth between the two kings.
+            if ins.piece == Piece::King {
+                continue;
+            }
+
             if &ins.player != attacker {
                 continue;
             }
