@@ -119,7 +119,7 @@ impl Piece {
             if !west_invalid {
                 if let Some(west_rook) = board.get(west_rook_idx) {
                     if !west_rook.was_moved {
-                        for i in (west_rook_idx + 1)..(king_idx - 1) {
+                        for i in (west_rook_idx + 2)..(king_idx - 1) {
                             moves.push((king_idx, i));
                         }
                     }
@@ -667,7 +667,7 @@ mod tests {
         assert_moves_eq(
             &Piece::get_moves_for_king_at(60, &board),
             60,
-            &[51, 52, 53, 57, 58, 59, 61],
+            &[51, 52, 53, 58, 59, 61],
         );
     }
 
@@ -689,7 +689,7 @@ mod tests {
         assert_moves_eq(
             &Piece::get_moves_for_king_at(4, &board),
             4,
-            &[1, 2, 3, 5, 11, 12, 13],
+            &[2, 3, 5, 11, 12, 13],
         );
     }
 
