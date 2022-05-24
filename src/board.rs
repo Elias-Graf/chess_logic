@@ -15,6 +15,7 @@ pub struct Board {
     pub piece_eligible_for_en_passant: Vec<(usize, usize)>,
     pub poses: [Option<PieceInstance>; Self::SIZE as usize],
     pub promote_idx: Option<usize>,
+    #[deprecated]
     pub selected_idx: Option<usize>,
     pub you_color: Color,
 }
@@ -24,7 +25,16 @@ impl Board {
     pub const WIDTH: usize = 8;
     pub const SIZE: usize = Self::HEIGHT * Self::WIDTH;
 
-    fn check_and_add_en_passant_eligibility(&mut self, src_idx: usize, hit_idx: usize) {
+    fn check_and_add_en_passant_eligibility(
+        &mut self,
+        src_ins: &PieceInstance,
+        src_idx: usize,
+        hit_idx: usize,
+    ) {
+        if src_ins.piece != Piece::Pawn {
+            return;
+        }
+
         let src_y = src_idx / Self::WIDTH;
         let hit_y = hit_idx / Self::WIDTH;
 
@@ -37,8 +47,10 @@ impl Board {
             (hit_idx as i8 + DIR_OFFSETS[DIR_WEST]) as usize,
             (hit_idx as i8 + DIR_OFFSETS[DIR_EAST]) as usize,
         ] {
-            if self.get(hit_pos).is_some() {
-                self.piece_eligible_for_en_passant.push((hit_pos, hit_idx));
+            if let Some(ins) = self.get(hit_pos) {
+                if ins.player != src_ins.player {
+                    self.piece_eligible_for_en_passant.push((hit_pos, hit_idx));
+                }
             }
         }
     }
@@ -120,7 +132,7 @@ impl Board {
 
         self.remove_old_en_passant_moves();
         // Adds en passant moves for the next turn
-        self.check_and_add_en_passant_eligibility(src_idx, hit_idx);
+        self.check_and_add_en_passant_eligibility(&src_ins, src_idx, hit_idx);
         // Execute en passant moves for this turn
         self.check_and_execute_en_passant(&src_ins, hit_idx);
 
@@ -342,6 +354,7 @@ impl Board {
         self.poses[idx] = ins;
     }
 
+    #[deprecated]
     pub fn set_selected(&mut self, idx: usize) {
         self.selected_idx = Some(idx);
     }

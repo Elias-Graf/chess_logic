@@ -972,6 +972,34 @@ mod tests {
     }
 
     #[test]
+    fn pawn_moves_en_passant_is_not_added_for_other_pieces() {
+        let mut board = board();
+        board.set(1, ins_you(Piece::Knight));
+        board.set(19, ins_opp(Piece::Pawn));
+
+        board.do_move((1, 18));
+
+        assert!(
+            !Piece::is_valid_move((19, 26), &board),
+            "en passant was added for knight"
+        );
+    }
+
+    #[test]
+    fn pawn_moves_en_passant_is_not_added_for_pieces_of_same_color() {
+        let mut board = board();
+        board.set(9, ins_opp(Piece::Pawn));
+        board.set(26, ins_opp(Piece::Pawn));
+
+        board.do_move((9, 25));
+
+        assert!(
+            !Piece::is_valid_move((26, 33), &board),
+            "en passant was added for piece of same color"
+        );
+    }
+
+    #[test]
     fn pawn_moves_hit_west_and_east() {
         let mut board = board();
         board.set(36, ins_you(Piece::Pawn));
