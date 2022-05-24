@@ -1,4 +1,4 @@
-use std::{arch::x86_64::_MM_FROUND_TO_POS_INF, mem};
+use std::mem;
 
 use crate::{
     piece::{DIR_EAST, DIR_NORTH, DIR_OFFSETS, DIR_SOUTH, DIR_WEST, TO_EDGE_OFFSETS},
@@ -6,6 +6,8 @@ use crate::{
 };
 
 pub type Move = (usize, usize);
+
+// TODO: Consider refactoring to use `i8` everywhere and save a bunch of casting.
 
 #[derive(Clone)]
 pub struct Board {
@@ -39,6 +41,34 @@ impl Board {
                 self.piece_eligible_for_en_passant.push((hit_pos, hit_idx));
             }
         }
+    }
+
+    fn check_and_execute_castle(
+        &mut self,
+        src_ins: &PieceInstance,
+        src_idx: usize,
+        hit_idx: usize,
+    ) {
+        if !matches!(src_ins.piece, Piece::King) {
+            return;
+        }
+
+        if src_idx.abs_diff(hit_idx) != 2 {
+            return;
+        }
+
+        let king_move_dir = match src_idx as i8 - hit_idx as i8 > 0 {
+            true => DIR_WEST,
+            false => DIR_EAST,
+        };
+
+        let rook_src_idx = (src_idx as i8
+            + (TO_EDGE_OFFSETS[src_idx][king_move_dir] as i8) * DIR_OFFSETS[king_move_dir])
+            as usize;
+        let rook_ins = self.replace_pos(rook_src_idx, None);
+        let rook_des_idx = (hit_idx as i8 - DIR_OFFSETS[king_move_dir]) as usize;
+
+        self.set(rook_des_idx, rook_ins);
     }
 
     fn check_and_execute_en_passant(&mut self, src_ins: &PieceInstance, hit_idx: usize) {
@@ -80,8 +110,8 @@ impl Board {
     /// If no piece is at the source index.
     pub fn do_move(&mut self, mv: Move) {
         let (src_idx, hit_idx) = mv;
-        let src_ins = match mem::replace(&mut self.poses[src_idx], None) {
-            Some(ins) => ins,
+        let src_ins = match self.replace_pos(src_idx, None) {
+            Some(i) => i,
             None => panic!(
                 "cannot execute move '{:?}' because there is no piece at the source index",
                 mv
@@ -93,6 +123,8 @@ impl Board {
         self.check_and_add_en_passant_eligibility(src_idx, hit_idx);
         // Execute en passant moves for this turn
         self.check_and_execute_en_passant(&src_ins, hit_idx);
+
+        self.check_and_execute_castle(&src_ins, src_idx, hit_idx);
 
         self.set(hit_idx, Some(src_ins));
     }
@@ -299,6 +331,13 @@ impl Board {
         self.piece_eligible_for_en_passant.clear()
     }
 
+    /// Replaced a given `idx` on the board with a given `val`.
+    ///
+    /// The replaced value will be returned.
+    fn replace_pos(&mut self, idx: usize, val: Option<PieceInstance>) -> Option<PieceInstance> {
+        mem::replace(&mut self.poses[idx], val)
+    }
+
     pub fn set(&mut self, idx: usize, ins: Option<PieceInstance>) {
         self.poses[idx] = ins;
     }
@@ -308,7 +347,7 @@ impl Board {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PieceInstance {
     pub piece: Piece,
     pub player: Player,
@@ -390,6 +429,169 @@ mod tests {
             "piece was removed {}",
             board
         );
+    }
+
+    #[test]
+    fn castle_moves_the_rook_you_west() {
+        let mut board = board_castle_you_west();
+
+        board.do_move((60, 58));
+
+        assert_eq!(
+            board.get(56).as_ref(),
+            None,
+            "rook was not removed {}",
+            board,
+        );
+
+        assert_eq!(
+            board.get(59).as_ref(),
+            ins_you(Piece::Rook).as_ref(),
+            "rook was not moved {}",
+            board
+        );
+    }
+
+    #[test]
+    fn castle_moves_the_rook_you_east() {
+        let mut board = board_castle_you_east();
+
+        board.do_move((60, 62));
+
+        assert_eq!(
+            board.get(63).as_ref(),
+            None,
+            "rook was not removed {}",
+            board,
+        );
+
+        assert_eq!(
+            board.get(61).as_ref(),
+            ins_you(Piece::Rook).as_ref(),
+            "rook was not moved {}",
+            board,
+        );
+    }
+
+    #[test]
+    fn castle_moves_the_rook_opponent_west() {
+        let mut board = board();
+        board.set(0, ins_opp(Piece::Rook));
+        board.set(4, ins_opp(Piece::King));
+
+        board.do_move((4, 2));
+
+        assert_eq!(
+            board.get(0).as_ref(),
+            None,
+            "rook was not removed {}",
+            board,
+        );
+
+        assert_eq!(
+            board.get(3).as_ref(),
+            ins_opp(Piece::Rook).as_ref(),
+            "rook was not moved {}",
+            board,
+        );
+    }
+
+    #[test]
+    fn castle_moves_the_rook_opponent_east() {
+        let mut board = board();
+        board.set(4, ins_opp(Piece::King));
+        board.set(7, ins_opp(Piece::Rook));
+
+        board.do_move((4, 6));
+
+        assert_eq!(
+            board.get(7).as_ref(),
+            None,
+            "rook was not removed {}",
+            board,
+        );
+
+        assert_eq!(
+            board.get(5).as_ref(),
+            ins_opp(Piece::Rook).as_ref(),
+            "rook was not moved {}",
+            board
+        );
+    }
+
+    #[test]
+    fn castle_only_moves_the_correct_rook_west() {
+        let mut board = board_castle_you_west();
+        board.set(63, ins_you(Piece::Rook));
+
+        board.do_move((60, 58));
+
+        assert_eq!(
+            board.get(63).as_ref(),
+            ins_you(Piece::Rook).as_ref(),
+            "east rook was moved {}",
+            board,
+        );
+    }
+
+    #[test]
+    fn castle_only_moves_the_correct_rook_east() {
+        let mut board = board_castle_you_east();
+        board.set(56, ins_you(Piece::Rook));
+
+        board.do_move((60, 62));
+
+        assert_eq!(
+            board.get(56).as_ref(),
+            ins_you(Piece::Rook).as_ref(),
+            "west rook was moved {}",
+            board,
+        );
+    }
+
+    #[test]
+    fn castle_does_not_happen_on_normal_king_moves() {
+        let mut board = board();
+        board.set(56, ins_you(Piece::Rook));
+        board.set(60, ins_you(Piece::King));
+
+        board.do_move((60, 59));
+
+        assert_eq!(
+            board.get(56).as_ref(),
+            ins_you(Piece::Rook).as_ref(),
+            "rook was removed",
+        );
+    }
+
+    #[test]
+    fn castle_move_is_not_done_for_other_pieces() {
+        let mut board = board();
+        board.set(56, ins_you(Piece::Rook));
+        board.set(60, ins_you(Piece::Queen));
+
+        board.do_move((60, 58));
+
+        assert_eq!(
+            board.get(56).as_ref(),
+            ins_you(Piece::Rook).as_ref(),
+            "rook was replaced {}",
+            board
+        );
+    }
+
+    fn board_castle_you_west() -> Board {
+        let mut board = board();
+        board.set(56, ins_you(Piece::Rook));
+        board.set(60, ins_you(Piece::King));
+        board
+    }
+
+    fn board_castle_you_east() -> Board {
+        let mut board = board();
+        board.set(60, ins_you(Piece::King));
+        board.set(63, ins_you(Piece::Rook));
+        board
     }
 
     /// Note that the instance is created with `was_moved = true`.

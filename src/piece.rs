@@ -20,7 +20,7 @@ pub const DIR_OFFSETS: [i8; 8] = [-8, -7, 1, 9, 8, 7, -1, -9];
 
 pub const TO_EDGE_OFFSETS: ToEdgeOffset = generate_to_edge_map();
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Piece {
     Bishop,
     King,
