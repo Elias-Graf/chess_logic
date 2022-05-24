@@ -15,8 +15,6 @@ pub struct Board {
     pub piece_eligible_for_en_passant: Vec<(usize, usize)>,
     pub poses: [Option<PieceInstance>; Self::SIZE as usize],
     pub promote_idx: Option<usize>,
-    #[deprecated]
-    pub selected_idx: Option<usize>,
     pub you_color: Color,
 }
 
@@ -92,24 +90,6 @@ impl Board {
         }
     }
 
-    /// Check if a given piece is a pawn, and if it reached the end of the board.
-    /// If the end of the board was reached, the position will be saved in promote
-    /// pos.
-    fn check_if_pawn_needs_promoting(&mut self, idx: usize) {
-        let ins = match &self.poses[idx] {
-            Some(i) => i,
-            None => return,
-        };
-
-        let reached_end_of_board =
-            TO_EDGE_OFFSETS[idx][DIR_NORTH] == 0 || TO_EDGE_OFFSETS[idx][DIR_SOUTH] == 0;
-
-        if matches!(ins.piece, Piece::Pawn) && reached_end_of_board {
-            // self.promote_pos = Some((x, y));
-            panic!("can currently not set the promote piece - convert it to idx first")
-        }
-    }
-
     /// Execute a move.
     /// Notably this does not check the move's validity, (if you want to do that use
     /// [`Piece::is_valid_move()`]). **However**, this function needs to check if
@@ -161,22 +141,8 @@ impl Board {
         }
     }
 
-    #[deprecated(note = "just use `Piece::get_moves_of_piece_at()` instead")]
-    pub fn get_moves_of_selected(&self) -> Vec<Move> {
-        let idx = match self.selected_idx {
-            Some(i) => i,
-            None => panic!("cannot get move of selected, as nothing is selected"),
-        };
-
-        Piece::get_moves_of_piece_at(idx, self)
-    }
-
     pub fn get_mut(&mut self, idx: usize) -> Option<&mut PieceInstance> {
         self.poses[idx].as_mut()
-    }
-
-    pub fn get_selected(&self) -> &Option<usize> {
-        &self.selected_idx
     }
 
     pub fn is_pos_attacked_by(&self, pos_idx: usize, attacker: &Player) -> bool {
@@ -200,50 +166,6 @@ impl Board {
         false
     }
 
-    // TODO: rework.
-    /// Moves the currently selected piece to the specified index (if possible).
-    /// One may select a piece using [`Self::set_selected()`].
-    ///
-    /// Returns `true` if the piece was moved.
-    #[deprecated(note = "use `Self::do_move()` instead")]
-    pub fn move_selected_to(&mut self, to_idx: usize) -> bool {
-        if let Some(promote_idx) = self.promote_idx {
-            panic!(
-                "cannot move a piece while a promotion (at '{}') is outstanding",
-                promote_idx
-            );
-        }
-
-        let from_idx = match self.selected_idx {
-            None => panic!("cannot move when no piece was selected, use `Self::update_selection()` to select a piece"),
-            Some(i) => i,
-        };
-
-        let mut move_ins = if let Some(instance) = &self.poses[from_idx] {
-            instance.clone()
-        } else {
-            panic!("no piece found to move at index '{}'", from_idx);
-        };
-
-        let moves = self.get_moves_of_selected();
-        let is_valid_move = moves.contains(&(from_idx, to_idx));
-
-        if !is_valid_move {
-            return false;
-        }
-
-        move_ins.was_moved = true;
-
-        self.poses[from_idx] = None;
-        self.poses[to_idx] = Some(move_ins);
-
-        self.selected_idx = None;
-
-        self.check_if_pawn_needs_promoting(to_idx);
-
-        true
-    }
-
     pub fn new(you_color: Color, opponent_color: Color) -> Self {
         // https://github.com/rust-lang/rust/issues/44796
         const INIT_POS: Option<PieceInstance> = None;
@@ -252,7 +174,6 @@ impl Board {
             piece_eligible_for_en_passant: Vec::with_capacity(2),
             poses: [INIT_POS; Self::SIZE as usize],
             promote_idx: None,
-            selected_idx: None,
             you_color,
         }
     }
@@ -352,11 +273,6 @@ impl Board {
 
     pub fn set(&mut self, idx: usize, ins: Option<PieceInstance>) {
         self.poses[idx] = ins;
-    }
-
-    #[deprecated]
-    pub fn set_selected(&mut self, idx: usize) {
-        self.selected_idx = Some(idx);
     }
 }
 
