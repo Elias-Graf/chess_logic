@@ -1,7 +1,4 @@
-use crate::{
-    board::{Move},
-    Board, Color,
-};
+use crate::{board::Move, Board, Color};
 
 // TODO: Investigate if this constants should really be defined here.
 
@@ -204,6 +201,14 @@ impl Piece {
         moves
     }
 
+    pub fn is_pawn_at_start_idx(idx: usize, color: &Color) -> bool {
+        if color == &Color::White {
+            return idx > 47 && idx < 56;
+        }
+
+        idx > 7 && idx < 16
+    }
+
     fn get_moves_for_pawn_at(idx: usize, board: &Board) -> Vec<Move> {
         let pawn_ins = match board.get(idx) {
             Some(i) => i,
@@ -215,7 +220,7 @@ impl Piece {
         let dir_offset = DIR_OFFSETS[dir];
 
         Self::push_move_if_empty(idx, (idx as i8 + dir_offset) as usize, &mut moves, board);
-        if !pawn_ins.was_moved {
+        if Piece::is_pawn_at_start_idx(idx, &pawn_ins.color) {
             Self::push_move_if_empty(
                 idx,
                 (idx as i8 + dir_offset * 2) as usize,
@@ -857,35 +862,28 @@ mod tests {
 
     #[test]
     fn pawn_moves_not_moved_yet() {
-        let pawn_ins = PieceInstance::new(Color::White, Piece::Pawn);
         let mut board = board();
-        board.set(48, Some(pawn_ins));
+        board.set(48, ins_white(Piece::Pawn));
 
         assert_moves_eq(&Piece::get_moves_for_pawn_at(48, &board), 48, &[32, 40]);
     }
 
     #[test]
     fn pawn_moves_has_moved_west() {
-        let mut pawn_ins = PieceInstance::new(Color::White, Piece::Pawn);
-        pawn_ins.was_moved = true;
-
         let mut board = board();
         // This piece will be hit if the bounds check is not done correctly.
         board.set(31, ins_black(Piece::Pawn));
-        board.set(40, Some(pawn_ins));
+        board.set(40, ins_white(Piece::Pawn));
 
         assert_moves_eq(&Piece::get_moves_for_pawn_at(40, &board), 40, &[32]);
     }
 
     #[test]
     fn pawn_moves_has_moved_east() {
-        let mut pawn_ins = PieceInstance::new(Color::White, Piece::Pawn);
-        pawn_ins.was_moved = true;
-
         let mut board = board();
         // This piece will be hit if the bounds check is not done correctly.
         board.set(40, ins_black(Piece::Pawn));
-        board.set(47, Some(pawn_ins));
+        board.set(47, ins_white(Piece::Pawn));
 
         assert_moves_eq(&Piece::get_moves_for_pawn_at(47, &board), 47, &[39]);
     }
@@ -1075,10 +1073,7 @@ mod tests {
     }
 
     fn ins(color: Color, piece: Piece) -> Option<PieceInstance> {
-        let mut ins = PieceInstance::new(color, piece);
-        ins.was_moved = true;
-
-        Some(ins)
+        Some(PieceInstance::new(color, piece))
     }
 
     fn display_moves(moves: &[Move]) -> String {

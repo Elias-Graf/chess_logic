@@ -313,16 +313,11 @@ impl Board {
 pub struct PieceInstance {
     pub color: Color,
     pub piece: Piece,
-    pub was_moved: bool,
 }
 
 impl PieceInstance {
     pub fn new(color: Color, piece: Piece) -> Self {
-        Self {
-            piece,
-            color,
-            was_moved: false,
-        }
+        Self { piece, color }
     }
 }
 
@@ -568,10 +563,7 @@ mod tests {
 
     /// Note that the instance is created with `was_moved = true`.
     fn ins(color: Color, piece: Piece) -> Option<PieceInstance> {
-        let mut ins = PieceInstance::new(color, piece);
-        ins.was_moved = true;
-
-        Some(ins)
+        Some(PieceInstance::new(color, piece))
     }
 
     fn board() -> Board {

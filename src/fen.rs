@@ -102,14 +102,7 @@ impl Fen for Board {
                 continue;
             }
 
-            let mut ins: PieceInstance = Fen::from_fen(&c.to_string())?;
-            if ins.piece == Piece::Pawn {
-                if ins.color == Color::White {
-                    ins.was_moved = !(idx > 47 && idx < 56);
-                } else {
-                    ins.was_moved = !(idx > 7 && idx < 16);
-                }
-            }
+            let ins: PieceInstance = Fen::from_fen(&c.to_string())?;
 
             board.set(idx, Some(ins));
             idx += 1;
