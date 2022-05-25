@@ -2,7 +2,7 @@ use std::mem;
 
 use crate::{
     piece::{DIR_EAST, DIR_NORTH, DIR_OFFSETS, DIR_SOUTH, DIR_WEST, TO_EDGE_OFFSETS},
-    Color, Piece, Player,
+    Color, Piece,
 };
 
 pub type Move = (usize, usize);
@@ -50,7 +50,7 @@ impl Board {
             (hit_idx as i8 + DIR_OFFSETS[DIR_EAST]) as usize,
         ] {
             if let Some(ins) = self.get(hit_pos) {
-                if ins.player != src_ins.player {
+                if ins.color != src_ins.color {
                     self.piece_eligible_for_en_passant.push((hit_pos, hit_idx));
                 }
             }
@@ -88,7 +88,7 @@ impl Board {
     fn check_and_execute_en_passant(&mut self, src_ins: &PieceInstance, hit_idx: usize) {
         if matches!(src_ins.piece, Piece::Pawn) && matches!(self.get(hit_idx), None) {
             let idx_behind_hit =
-                ((hit_idx as i8) - DIR_OFFSETS[self.get_attack_dir_of(&src_ins.player)]) as usize;
+                ((hit_idx as i8) - DIR_OFFSETS[Self::get_attack_dir_of(&src_ins.color)]) as usize;
 
             self.set(idx_behind_hit, None);
         }
@@ -121,7 +121,7 @@ impl Board {
         self.check_and_execute_en_passant(&src_ins, hit_idx);
 
         if src_ins.piece == Piece::King {
-            match self.get_color_of_player(&src_ins.player) {
+            match src_ins.color {
                 Color::Black => {
                     self.can_black_castle_king_side = false;
                     self.can_black_castle_queen_side = false;
@@ -134,7 +134,7 @@ impl Board {
         }
 
         if src_ins.piece == Piece::Rook {
-            match (self.get_color_of_player(&src_ins.player), src_idx) {
+            match (&src_ins.color, src_idx) {
                 (Color::Black, 0) => self.can_black_castle_queen_side = false,
                 (Color::Black, 7) => self.can_black_castle_king_side = false,
                 (Color::White, 56) => self.can_white_castle_queen_side = false,
@@ -154,17 +154,10 @@ impl Board {
 
     /// Get the direction ([`DIR_NORTH`]/[`DIR_SOUTH`]) in which the pieces are
     /// attacking. Basically the opposite side of where the pieces started.
-    pub fn get_attack_dir_of(&self, player: &Player) -> usize {
-        match player {
-            Player::You => DIR_NORTH,
-            Player::Opponent => DIR_SOUTH,
-        }
-    }
-
-    pub fn get_color_of_player(&self, player: &Player) -> &Color {
-        match player {
-            Player::Opponent => &self.opponent_color,
-            Player::You => &self.you_color,
+    pub fn get_attack_dir_of(color: &Color) -> usize {
+        match color {
+            Color::Black => DIR_SOUTH,
+            Color::White => DIR_NORTH,
         }
     }
 
@@ -172,7 +165,7 @@ impl Board {
         self.poses[idx].as_mut()
     }
 
-    pub fn is_pos_attacked_by(&self, pos_idx: usize, attacker: &Player) -> bool {
+    pub fn is_pos_attacked_by(&self, pos_idx: usize, atk_color: &Color) -> bool {
         for (iter, pos) in self.poses.iter().enumerate() {
             let ins = match pos {
                 Some(i) => i,
@@ -188,7 +181,7 @@ impl Board {
                 continue;
             }
 
-            if &ins.player != attacker {
+            if &ins.color != atk_color {
                 continue;
             }
 
@@ -222,41 +215,41 @@ impl Board {
         let mut board = Self::new(you_color, opponent_color);
 
         // Standard chess formation:
-        board.set(0, Some(PieceInstance::new(Player::Opponent, Piece::Rook)));
-        board.set(1, Some(PieceInstance::new(Player::Opponent, Piece::Knight)));
-        board.set(2, Some(PieceInstance::new(Player::Opponent, Piece::Bishop)));
-        board.set(3, Some(PieceInstance::new(Player::Opponent, Piece::Queen)));
-        board.set(4, Some(PieceInstance::new(Player::Opponent, Piece::King)));
-        board.set(5, Some(PieceInstance::new(Player::Opponent, Piece::Bishop)));
-        board.set(6, Some(PieceInstance::new(Player::Opponent, Piece::Knight)));
-        board.set(7, Some(PieceInstance::new(Player::Opponent, Piece::Rook)));
+        board.set(0, Some(PieceInstance::new(Color::Black, Piece::Rook)));
+        board.set(1, Some(PieceInstance::new(Color::Black, Piece::Knight)));
+        board.set(2, Some(PieceInstance::new(Color::Black, Piece::Bishop)));
+        board.set(3, Some(PieceInstance::new(Color::Black, Piece::Queen)));
+        board.set(4, Some(PieceInstance::new(Color::Black, Piece::King)));
+        board.set(5, Some(PieceInstance::new(Color::Black, Piece::Bishop)));
+        board.set(6, Some(PieceInstance::new(Color::Black, Piece::Knight)));
+        board.set(7, Some(PieceInstance::new(Color::Black, Piece::Rook)));
 
-        board.set(8, Some(PieceInstance::new(Player::Opponent, Piece::Pawn)));
-        board.set(9, Some(PieceInstance::new(Player::Opponent, Piece::Pawn)));
-        board.set(10, Some(PieceInstance::new(Player::Opponent, Piece::Pawn)));
-        board.set(11, Some(PieceInstance::new(Player::Opponent, Piece::Pawn)));
-        board.set(12, Some(PieceInstance::new(Player::Opponent, Piece::Pawn)));
-        board.set(13, Some(PieceInstance::new(Player::Opponent, Piece::Pawn)));
-        board.set(14, Some(PieceInstance::new(Player::Opponent, Piece::Pawn)));
-        board.set(15, Some(PieceInstance::new(Player::Opponent, Piece::Pawn)));
+        board.set(8, Some(PieceInstance::new(Color::Black, Piece::Pawn)));
+        board.set(9, Some(PieceInstance::new(Color::Black, Piece::Pawn)));
+        board.set(10, Some(PieceInstance::new(Color::Black, Piece::Pawn)));
+        board.set(11, Some(PieceInstance::new(Color::Black, Piece::Pawn)));
+        board.set(12, Some(PieceInstance::new(Color::Black, Piece::Pawn)));
+        board.set(13, Some(PieceInstance::new(Color::Black, Piece::Pawn)));
+        board.set(14, Some(PieceInstance::new(Color::Black, Piece::Pawn)));
+        board.set(15, Some(PieceInstance::new(Color::Black, Piece::Pawn)));
 
-        board.set(48, Some(PieceInstance::new(Player::You, Piece::Pawn)));
-        board.set(49, Some(PieceInstance::new(Player::You, Piece::Pawn)));
-        board.set(50, Some(PieceInstance::new(Player::You, Piece::Pawn)));
-        board.set(51, Some(PieceInstance::new(Player::You, Piece::Pawn)));
-        board.set(52, Some(PieceInstance::new(Player::You, Piece::Pawn)));
-        board.set(53, Some(PieceInstance::new(Player::You, Piece::Pawn)));
-        board.set(54, Some(PieceInstance::new(Player::You, Piece::Pawn)));
-        board.set(55, Some(PieceInstance::new(Player::You, Piece::Pawn)));
+        board.set(48, Some(PieceInstance::new(Color::White, Piece::Pawn)));
+        board.set(49, Some(PieceInstance::new(Color::White, Piece::Pawn)));
+        board.set(50, Some(PieceInstance::new(Color::White, Piece::Pawn)));
+        board.set(51, Some(PieceInstance::new(Color::White, Piece::Pawn)));
+        board.set(52, Some(PieceInstance::new(Color::White, Piece::Pawn)));
+        board.set(53, Some(PieceInstance::new(Color::White, Piece::Pawn)));
+        board.set(54, Some(PieceInstance::new(Color::White, Piece::Pawn)));
+        board.set(55, Some(PieceInstance::new(Color::White, Piece::Pawn)));
 
-        board.set(56, Some(PieceInstance::new(Player::You, Piece::Rook)));
-        board.set(57, Some(PieceInstance::new(Player::You, Piece::Knight)));
-        board.set(58, Some(PieceInstance::new(Player::You, Piece::Bishop)));
-        board.set(59, Some(PieceInstance::new(Player::You, Piece::Queen)));
-        board.set(60, Some(PieceInstance::new(Player::You, Piece::King)));
-        board.set(61, Some(PieceInstance::new(Player::You, Piece::Bishop)));
-        board.set(62, Some(PieceInstance::new(Player::You, Piece::Knight)));
-        board.set(63, Some(PieceInstance::new(Player::You, Piece::Rook)));
+        board.set(56, Some(PieceInstance::new(Color::White, Piece::Rook)));
+        board.set(57, Some(PieceInstance::new(Color::White, Piece::Knight)));
+        board.set(58, Some(PieceInstance::new(Color::White, Piece::Bishop)));
+        board.set(59, Some(PieceInstance::new(Color::White, Piece::Queen)));
+        board.set(60, Some(PieceInstance::new(Color::White, Piece::King)));
+        board.set(61, Some(PieceInstance::new(Color::White, Piece::Bishop)));
+        board.set(62, Some(PieceInstance::new(Color::White, Piece::Knight)));
+        board.set(63, Some(PieceInstance::new(Color::White, Piece::Rook)));
 
         board
     }
@@ -295,7 +288,7 @@ impl Board {
             ins.piece,
         );
 
-        self.set(idx, Some(PieceInstance::new(ins.player, promote_to)));
+        self.set(idx, Some(PieceInstance::new(ins.color, promote_to)));
 
         self.promote_idx = None
     }
@@ -318,16 +311,16 @@ impl Board {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PieceInstance {
+    pub color: Color,
     pub piece: Piece,
-    pub player: Player,
     pub was_moved: bool,
 }
 
 impl PieceInstance {
-    pub fn new(player: Player, piece: Piece) -> Self {
+    pub fn new(color: Color, piece: Piece) -> Self {
         Self {
             piece,
-            player,
+            color,
             was_moved: false,
         }
     }
@@ -340,8 +333,8 @@ mod tests {
     #[test]
     fn en_passant_removes_the_other_piece_you() {
         let mut board = board();
-        board.set(8, ins_opp(Piece::Pawn));
-        board.set(25, ins_you(Piece::Pawn));
+        board.set(8, ins_black(Piece::Pawn));
+        board.set(25, ins_white(Piece::Pawn));
 
         board.do_move((8, 24));
         board.do_move((25, 16));
@@ -356,8 +349,8 @@ mod tests {
     #[test]
     fn en_passant_removes_the_other_piece_opponent() {
         let mut board = board();
-        board.set(33, ins_opp(Piece::Pawn));
-        board.set(48, ins_you(Piece::Pawn));
+        board.set(33, ins_black(Piece::Pawn));
+        board.set(48, ins_white(Piece::Pawn));
 
         board.do_move((48, 32));
         board.do_move((33, 40));
@@ -372,8 +365,8 @@ mod tests {
     #[test]
     fn en_passant_is_not_done_for_other_pieces() {
         let mut board = board();
-        board.set(33, ins_opp(Piece::Bishop));
-        board.set(32, ins_you(Piece::Pawn));
+        board.set(33, ins_black(Piece::Bishop));
+        board.set(32, ins_white(Piece::Pawn));
 
         board.do_move((33, 40));
 
@@ -387,9 +380,9 @@ mod tests {
     #[test]
     fn en_passant_is_not_executed_on_normal_take() {
         let mut board = board();
-        board.set(33, ins_you(Piece::Pawn));
-        board.set(34, ins_opp(Piece::Pawn));
-        board.set(41, ins_you(Piece::Pawn));
+        board.set(33, ins_white(Piece::Pawn));
+        board.set(34, ins_black(Piece::Pawn));
+        board.set(41, ins_white(Piece::Pawn));
 
         board.do_move((34, 41));
 
@@ -415,7 +408,7 @@ mod tests {
 
         assert_eq!(
             board.get(59).as_ref(),
-            ins_you(Piece::Rook).as_ref(),
+            ins_white(Piece::Rook).as_ref(),
             "rook was not moved {}",
             board
         );
@@ -436,7 +429,7 @@ mod tests {
 
         assert_eq!(
             board.get(61).as_ref(),
-            ins_you(Piece::Rook).as_ref(),
+            ins_white(Piece::Rook).as_ref(),
             "rook was not moved {}",
             board,
         );
@@ -445,8 +438,8 @@ mod tests {
     #[test]
     fn castle_moves_the_rook_opponent_west() {
         let mut board = board();
-        board.set(0, ins_opp(Piece::Rook));
-        board.set(4, ins_opp(Piece::King));
+        board.set(0, ins_black(Piece::Rook));
+        board.set(4, ins_black(Piece::King));
 
         board.do_move((4, 2));
 
@@ -459,7 +452,7 @@ mod tests {
 
         assert_eq!(
             board.get(3).as_ref(),
-            ins_opp(Piece::Rook).as_ref(),
+            ins_black(Piece::Rook).as_ref(),
             "rook was not moved {}",
             board,
         );
@@ -468,8 +461,8 @@ mod tests {
     #[test]
     fn castle_moves_the_rook_opponent_east() {
         let mut board = board();
-        board.set(4, ins_opp(Piece::King));
-        board.set(7, ins_opp(Piece::Rook));
+        board.set(4, ins_black(Piece::King));
+        board.set(7, ins_black(Piece::Rook));
 
         board.do_move((4, 6));
 
@@ -482,7 +475,7 @@ mod tests {
 
         assert_eq!(
             board.get(5).as_ref(),
-            ins_opp(Piece::Rook).as_ref(),
+            ins_black(Piece::Rook).as_ref(),
             "rook was not moved {}",
             board
         );
@@ -491,13 +484,13 @@ mod tests {
     #[test]
     fn castle_only_moves_the_correct_rook_west() {
         let mut board = board_castle_you_west();
-        board.set(63, ins_you(Piece::Rook));
+        board.set(63, ins_white(Piece::Rook));
 
         board.do_move((60, 58));
 
         assert_eq!(
             board.get(63).as_ref(),
-            ins_you(Piece::Rook).as_ref(),
+            ins_white(Piece::Rook).as_ref(),
             "east rook was moved {}",
             board,
         );
@@ -506,13 +499,13 @@ mod tests {
     #[test]
     fn castle_only_moves_the_correct_rook_east() {
         let mut board = board_castle_you_east();
-        board.set(56, ins_you(Piece::Rook));
+        board.set(56, ins_white(Piece::Rook));
 
         board.do_move((60, 62));
 
         assert_eq!(
             board.get(56).as_ref(),
-            ins_you(Piece::Rook).as_ref(),
+            ins_white(Piece::Rook).as_ref(),
             "west rook was moved {}",
             board,
         );
@@ -521,14 +514,14 @@ mod tests {
     #[test]
     fn castle_does_not_happen_on_normal_king_moves() {
         let mut board = board();
-        board.set(56, ins_you(Piece::Rook));
-        board.set(60, ins_you(Piece::King));
+        board.set(56, ins_white(Piece::Rook));
+        board.set(60, ins_white(Piece::King));
 
         board.do_move((60, 59));
 
         assert_eq!(
             board.get(56).as_ref(),
-            ins_you(Piece::Rook).as_ref(),
+            ins_white(Piece::Rook).as_ref(),
             "rook was removed",
         );
     }
@@ -536,14 +529,14 @@ mod tests {
     #[test]
     fn castle_move_is_not_done_for_other_pieces() {
         let mut board = board();
-        board.set(56, ins_you(Piece::Rook));
-        board.set(60, ins_you(Piece::Queen));
+        board.set(56, ins_white(Piece::Rook));
+        board.set(60, ins_white(Piece::Queen));
 
         board.do_move((60, 58));
 
         assert_eq!(
             board.get(56).as_ref(),
-            ins_you(Piece::Rook).as_ref(),
+            ins_white(Piece::Rook).as_ref(),
             "rook was replaced {}",
             board
         );
@@ -551,31 +544,31 @@ mod tests {
 
     fn board_castle_you_west() -> Board {
         let mut board = board();
-        board.set(56, ins_you(Piece::Rook));
-        board.set(60, ins_you(Piece::King));
+        board.set(56, ins_white(Piece::Rook));
+        board.set(60, ins_white(Piece::King));
         board
     }
 
     fn board_castle_you_east() -> Board {
         let mut board = board();
-        board.set(60, ins_you(Piece::King));
-        board.set(63, ins_you(Piece::Rook));
+        board.set(60, ins_white(Piece::King));
+        board.set(63, ins_white(Piece::Rook));
         board
     }
 
     /// Note that the instance is created with `was_moved = true`.
-    fn ins_opp(piece: Piece) -> Option<PieceInstance> {
-        ins(Player::Opponent, piece)
+    fn ins_black(piece: Piece) -> Option<PieceInstance> {
+        ins(Color::Black, piece)
     }
 
     /// Note that the instance is created with `was_moved = true`.
-    fn ins_you(piece: Piece) -> Option<PieceInstance> {
-        ins(Player::You, piece)
+    fn ins_white(piece: Piece) -> Option<PieceInstance> {
+        ins(Color::White, piece)
     }
 
     /// Note that the instance is created with `was_moved = true`.
-    fn ins(player: Player, piece: Piece) -> Option<PieceInstance> {
-        let mut ins = PieceInstance::new(player, piece);
+    fn ins(color: Color, piece: Piece) -> Option<PieceInstance> {
+        let mut ins = PieceInstance::new(color, piece);
         ins.was_moved = true;
 
         Some(ins)

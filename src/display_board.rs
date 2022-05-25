@@ -43,7 +43,7 @@ pub fn get_fg_color_of(idx: usize, board: &Board) -> &str {
     const FG_WHITE: &str = "\u{001b}[38;5;15m";
 
     match board.get(idx) {
-        Some(ins) => match board.get_color_of_player(&ins.player) {
+        Some(ins) => match ins.color {
             crate::Color::Black => FG_BLACK,
             crate::Color::White => FG_WHITE,
         },

@@ -1,6 +1,6 @@
 use crate::{
-    board::{self, Move},
-    Board, Color, Player,
+    board::{Move},
+    Board, Color,
 };
 
 // TODO: Investigate if this constants should really be defined here.
@@ -99,14 +99,13 @@ impl Piece {
             .get(king_idx)
             .as_ref()
             .unwrap_or_else(|| panic!("castle check failed, no piece at index '{}'", king_idx));
-        let king_color = board.get_color_of_player(&king_ins.player);
-        let attacker = Player::get_opposing(&king_ins.player);
+        let atk_color = king_ins.color.get_opposing();
 
         let push_castle_move_if_applicable =
             &mut |can_castle: bool, poses_to_validate: &[usize], move_to_add: usize| {
                 if can_castle {
                     for &pos in poses_to_validate {
-                        if board.get(pos).is_some() || board.is_pos_attacked_by(pos, &attacker) {
+                        if board.get(pos).is_some() || board.is_pos_attacked_by(pos, &atk_color) {
                             return;
                         }
                     }
@@ -115,11 +114,10 @@ impl Piece {
                 }
             };
 
-        if king_color == &Color::Black {
+        if king_ins.color == Color::Black {
             push_castle_move_if_applicable(board.can_black_castle_queen_side, &[1, 2, 3], 2);
             push_castle_move_if_applicable(board.can_black_castle_king_side, &[5, 6], 6);
-        }
-        if king_color == &Color::White {
+        } else {
             push_castle_move_if_applicable(board.can_white_castle_queen_side, &[57, 58, 59], 58);
             push_castle_move_if_applicable(board.can_white_castle_king_side, &[61, 62], 62);
         }
@@ -213,11 +211,7 @@ impl Piece {
         };
         let mut moves = Vec::new();
 
-        let dir = match Self::get_pawn_direction(pawn_ins) {
-            -1 => DIR_NORTH,
-            1 => DIR_SOUTH,
-            unknown => panic!("unsupported direction {}", unknown),
-        };
+        let dir = Board::get_attack_dir_of(&pawn_ins.color);
         let dir_offset = DIR_OFFSETS[dir];
 
         Self::push_move_if_empty(idx, (idx as i8 + dir_offset) as usize, &mut moves, board);
@@ -349,20 +343,6 @@ impl Piece {
         }
     }
 
-    // TODO: This is not at the right place. Check if this can be moved somewhere
-    // else.
-    // As stated in the comment bellow, this will break as soon as `you` is not at
-    // the bottom of the board. Thus this should probably be inside the [`Board`].
-    // TODO: additionally, this could be changed to return the cardinal directions.
-    pub fn get_pawn_direction(ins: &board::PieceInstance) -> i8 {
-        // Currently it is assumed that you are at the bottom of the board.
-        // In case this assumption is false in the future, this code WILL not work.
-        match ins.player {
-            Player::You => -1,
-            Player::Opponent => 1,
-        }
-    }
-
     pub const fn get_symbol_of(piece: &Self) -> &str {
         match piece {
             Self::Bishop => "BI",
@@ -402,7 +382,7 @@ impl Piece {
             None => return,
         };
 
-        if src_ins.player == hit_ins.player {
+        if src_ins.color == hit_ins.color {
             return;
         }
 
@@ -426,7 +406,7 @@ impl Piece {
         if let Some(hit_ins) = board.get(hit_idx) {
             // You can't really take your own piece, thus the player need to be
             // different for a move to be added.
-            if src_ins.player != hit_ins.player {
+            if src_ins.color != hit_ins.color {
                 moves.push((src_idx, hit_idx));
             }
 
@@ -489,7 +469,7 @@ mod tests {
     #[test]
     fn bishop_moves_no_hit() {
         let mut board = board();
-        board.set(36, ins_you(Piece::Bishop));
+        board.set(36, ins_white(Piece::Bishop));
 
         assert_moves_eq(
             &Piece::get_moves_for_bishop_at(36, &board),
@@ -501,9 +481,9 @@ mod tests {
     #[test]
     fn bishop_moves_hit_ally_and_opponent() {
         let mut board = board();
-        board.set(27, ins_you(Piece::Pawn));
-        board.set(29, ins_opp(Piece::Pawn));
-        board.set(36, ins_you(Piece::Bishop));
+        board.set(27, ins_white(Piece::Pawn));
+        board.set(29, ins_black(Piece::Pawn));
+        board.set(36, ins_white(Piece::Bishop));
 
         assert_moves_eq(
             &Piece::get_moves_for_bishop_at(36, &board),
@@ -515,7 +495,7 @@ mod tests {
     #[test]
     fn knight_moves_no_hit() {
         let mut board = board();
-        board.set(36, ins_you(Piece::Knight));
+        board.set(36, ins_white(Piece::Knight));
 
         assert_moves_eq(
             &Piece::get_moves_for_knight_at(36, &board),
@@ -527,7 +507,7 @@ mod tests {
     #[test]
     fn king_moves_no_hit() {
         let mut board = board();
-        board.set(36, ins_you(Piece::King));
+        board.set(36, ins_white(Piece::King));
 
         assert_moves_eq(
             &Piece::get_moves_for_king_at(36, &board),
@@ -539,9 +519,9 @@ mod tests {
     #[test]
     fn king_moves_hit_ally_and_opponent() {
         let mut board = board();
-        board.set(35, ins_you(Piece::Pawn));
-        board.set(36, ins_you(Piece::King));
-        board.set(37, ins_opp(Piece::Pawn));
+        board.set(35, ins_white(Piece::Pawn));
+        board.set(36, ins_white(Piece::King));
+        board.set(37, ins_black(Piece::Pawn));
 
         assert_moves_eq(
             &Piece::get_moves_for_king_at(36, &board),
@@ -553,7 +533,7 @@ mod tests {
     #[test]
     fn king_moves_bottom_left() {
         let mut board = board();
-        board.set(56, ins_you(Piece::King));
+        board.set(56, ins_white(Piece::King));
 
         assert_moves_eq(&Piece::get_moves_for_king_at(56, &board), 56, &[48, 49, 57]);
     }
@@ -561,7 +541,7 @@ mod tests {
     #[test]
     fn king_moves_top_right() {
         let mut board = board();
-        board.set(7, ins_you(Piece::King));
+        board.set(7, ins_white(Piece::King));
 
         assert_moves_eq(&Piece::get_moves_for_king_at(7, &board), 7, &[6, 14, 15]);
     }
@@ -631,9 +611,9 @@ mod tests {
     #[test]
     fn king_moves_castle_only_works_if_the_rooks_have_not_been_moved_yet() {
         let mut board = board();
-        board.set(56, ins_you(Piece::Rook));
-        board.set(60, ins_you(Piece::King));
-        board.set(63, ins_you(Piece::Rook));
+        board.set(56, ins_white(Piece::Rook));
+        board.set(60, ins_white(Piece::King));
+        board.set(63, ins_white(Piece::Rook));
 
         board.do_move((56, 48));
         board.do_move((48, 56));
@@ -654,7 +634,7 @@ mod tests {
 
         for i in 49..52 {
             let mut board = board.clone();
-            board.set(i, ins_opp(Piece::Pawn));
+            board.set(i, ins_black(Piece::Pawn));
 
             assert_moves_eq(
                 &Piece::get_moves_for_king_at(60, &board),
@@ -670,7 +650,7 @@ mod tests {
 
         for i in 53..55 {
             let mut board = board.clone();
-            board.set(i, ins_opp(Piece::Pawn));
+            board.set(i, ins_black(Piece::Pawn));
 
             assert_moves_eq(
                 &Piece::get_moves_for_king_at(60, &board),
@@ -686,7 +666,7 @@ mod tests {
 
         for i in 9..12 {
             let mut board = board.clone();
-            board.set(i, ins_you(Piece::Pawn));
+            board.set(i, ins_white(Piece::Pawn));
 
             assert_moves_eq(
                 &Piece::get_moves_for_king_at(4, &board),
@@ -702,7 +682,7 @@ mod tests {
 
         for i in 13..15 {
             let mut board = board.clone();
-            board.set(i, ins_you(Piece::Pawn));
+            board.set(i, ins_white(Piece::Pawn));
 
             assert_moves_eq(
                 &Piece::get_moves_for_king_at(4, &board),
@@ -720,7 +700,7 @@ mod tests {
         // pice is right next to the king, and the resulting moves are different.
         {
             let mut board = board.clone();
-            board.set(57, ins_you(Piece::Rook));
+            board.set(57, ins_white(Piece::Rook));
 
             assert_moves_eq(
                 &Piece::get_moves_for_king_at(60, &board),
@@ -731,7 +711,7 @@ mod tests {
 
         {
             let mut board = board.clone();
-            board.set(58, ins_you(Piece::Rook));
+            board.set(58, ins_white(Piece::Rook));
 
             assert_moves_eq(
                 &Piece::get_moves_for_king_at(60, &board),
@@ -742,7 +722,7 @@ mod tests {
 
         {
             let mut board = board.clone();
-            board.set(59, ins_you(Piece::Rook));
+            board.set(59, ins_white(Piece::Rook));
 
             assert_moves_eq(
                 &Piece::get_moves_for_king_at(60, &board),
@@ -760,7 +740,7 @@ mod tests {
         // piece is right next to the king, and the resulting moves are different.
         {
             let mut board = board.clone();
-            board.set(61, ins_you(Piece::Rook));
+            board.set(61, ins_white(Piece::Rook));
 
             assert_moves_eq(
                 &Piece::get_moves_for_king_at(60, &board),
@@ -771,7 +751,7 @@ mod tests {
 
         {
             let mut board = board.clone();
-            board.set(62, ins_you(Piece::Rook));
+            board.set(62, ins_white(Piece::Rook));
 
             assert_moves_eq(
                 &Piece::get_moves_for_king_at(60, &board),
@@ -786,9 +766,9 @@ mod tests {
         board.can_white_castle_king_side = true;
         board.can_white_castle_queen_side = true;
 
-        board.set(56, ins_you(Piece::Rook));
-        board.set(60, ins_you(Piece::King));
-        board.set(63, ins_you(Piece::Rook));
+        board.set(56, ins_white(Piece::Rook));
+        board.set(60, ins_white(Piece::King));
+        board.set(63, ins_white(Piece::Rook));
 
         board
     }
@@ -798,9 +778,9 @@ mod tests {
         board.can_black_castle_king_side = true;
         board.can_black_castle_queen_side = true;
 
-        board.set(0, ins_opp(Piece::Rook));
-        board.set(4, ins_opp(Piece::King));
-        board.set(7, ins_opp(Piece::Rook));
+        board.set(0, ins_black(Piece::Rook));
+        board.set(4, ins_black(Piece::King));
+        board.set(7, ins_black(Piece::Rook));
 
         board
     }
@@ -808,9 +788,9 @@ mod tests {
     #[test]
     fn knight_moves_hit_ally_and_opponent() {
         let mut board = board();
-        board.set(19, ins_you(Piece::Pawn));
-        board.set(21, ins_opp(Piece::Pawn));
-        board.set(36, ins_you(Piece::Knight));
+        board.set(19, ins_white(Piece::Pawn));
+        board.set(21, ins_black(Piece::Pawn));
+        board.set(36, ins_white(Piece::Knight));
 
         assert_moves_eq(
             &Piece::get_moves_for_knight_at(36, &board),
@@ -822,7 +802,7 @@ mod tests {
     #[test]
     fn knight_moves_top_left() {
         let mut board = board();
-        board.set(0, ins_you(Piece::Knight));
+        board.set(0, ins_white(Piece::Knight));
 
         assert_moves_eq(&Piece::get_moves_for_knight_at(0, &board), 0, &[10, 17]);
     }
@@ -830,7 +810,7 @@ mod tests {
     #[test]
     fn knight_moves_top_right() {
         let mut board = board();
-        board.set(7, ins_you(Piece::Knight));
+        board.set(7, ins_white(Piece::Knight));
 
         assert_moves_eq(&Piece::get_moves_for_knight_at(7, &board), 7, &[13, 22]);
     }
@@ -838,7 +818,7 @@ mod tests {
     #[test]
     fn knight_moves_bottom_left() {
         let mut board = board();
-        board.set(56, ins_you(Piece::Knight));
+        board.set(56, ins_white(Piece::Knight));
 
         assert_moves_eq(&Piece::get_moves_for_knight_at(56, &board), 56, &[41, 50]);
     }
@@ -846,7 +826,7 @@ mod tests {
     #[test]
     fn knight_moves_bottom_right() {
         let mut board = board();
-        board.set(63, ins_you(Piece::Knight));
+        board.set(63, ins_white(Piece::Knight));
 
         assert_moves_eq(&Piece::get_moves_for_knight_at(63, &board), 63, &[46, 53]);
     }
@@ -854,7 +834,7 @@ mod tests {
     #[test]
     fn knight_moves_1_offset_top_right() {
         let mut board = board();
-        board.set(9, ins_you(Piece::Knight));
+        board.set(9, ins_white(Piece::Knight));
 
         assert_moves_eq(
             &Piece::get_moves_for_knight_at(9, &board),
@@ -866,7 +846,7 @@ mod tests {
     #[test]
     fn knight_moves_1_offset_bottom_right() {
         let mut board = board();
-        board.set(54, ins_you(Piece::Knight));
+        board.set(54, ins_white(Piece::Knight));
 
         assert_moves_eq(
             &Piece::get_moves_for_knight_at(54, &board),
@@ -877,7 +857,7 @@ mod tests {
 
     #[test]
     fn pawn_moves_not_moved_yet() {
-        let pawn_ins = PieceInstance::new(Player::You, Piece::Pawn);
+        let pawn_ins = PieceInstance::new(Color::White, Piece::Pawn);
         let mut board = board();
         board.set(48, Some(pawn_ins));
 
@@ -886,12 +866,12 @@ mod tests {
 
     #[test]
     fn pawn_moves_has_moved_west() {
-        let mut pawn_ins = PieceInstance::new(Player::You, Piece::Pawn);
+        let mut pawn_ins = PieceInstance::new(Color::White, Piece::Pawn);
         pawn_ins.was_moved = true;
 
         let mut board = board();
         // This piece will be hit if the bounds check is not done correctly.
-        board.set(31, ins_opp(Piece::Pawn));
+        board.set(31, ins_black(Piece::Pawn));
         board.set(40, Some(pawn_ins));
 
         assert_moves_eq(&Piece::get_moves_for_pawn_at(40, &board), 40, &[32]);
@@ -899,12 +879,12 @@ mod tests {
 
     #[test]
     fn pawn_moves_has_moved_east() {
-        let mut pawn_ins = PieceInstance::new(Player::You, Piece::Pawn);
+        let mut pawn_ins = PieceInstance::new(Color::White, Piece::Pawn);
         pawn_ins.was_moved = true;
 
         let mut board = board();
         // This piece will be hit if the bounds check is not done correctly.
-        board.set(40, ins_opp(Piece::Pawn));
+        board.set(40, ins_black(Piece::Pawn));
         board.set(47, Some(pawn_ins));
 
         assert_moves_eq(&Piece::get_moves_for_pawn_at(47, &board), 47, &[39]);
@@ -913,8 +893,8 @@ mod tests {
     #[test]
     fn pawn_moves_en_passant_you_west() {
         let mut board = board();
-        board.set(9, ins_opp(Piece::Pawn));
-        board.set(24, ins_you(Piece::Pawn));
+        board.set(9, ins_black(Piece::Pawn));
+        board.set(24, ins_white(Piece::Pawn));
 
         board.do_move((9, 25));
 
@@ -924,8 +904,8 @@ mod tests {
     #[test]
     fn pawn_moves_en_passant_you_east() {
         let mut board = board();
-        board.set(9, ins_opp(Piece::Pawn));
-        board.set(26, ins_you(Piece::Pawn));
+        board.set(9, ins_black(Piece::Pawn));
+        board.set(26, ins_white(Piece::Pawn));
 
         board.do_move((9, 25));
 
@@ -935,8 +915,8 @@ mod tests {
     #[test]
     fn pawn_moves_en_passant_opponent_west() {
         let mut board = board();
-        board.set(32, ins_opp(Piece::Pawn));
-        board.set(49, ins_you(Piece::Pawn));
+        board.set(32, ins_black(Piece::Pawn));
+        board.set(49, ins_white(Piece::Pawn));
 
         board.do_move((49, 33));
 
@@ -946,8 +926,8 @@ mod tests {
     #[test]
     fn pawn_moves_en_passant_opponent_east() {
         let mut board = board();
-        board.set(34, ins_opp(Piece::Pawn));
-        board.set(49, ins_you(Piece::Pawn));
+        board.set(34, ins_black(Piece::Pawn));
+        board.set(49, ins_white(Piece::Pawn));
 
         board.do_move((49, 33));
 
@@ -957,9 +937,9 @@ mod tests {
     #[test]
     fn pawn_move_en_passant_can_only_be_done_in_the_turn_immediately_after() {
         let mut board = board();
-        board.set(34, ins_opp(Piece::Pawn));
-        board.set(49, ins_you(Piece::Pawn));
-        board.set(63, ins_you(Piece::King));
+        board.set(34, ins_black(Piece::Pawn));
+        board.set(49, ins_white(Piece::Pawn));
+        board.set(63, ins_white(Piece::King));
 
         board.do_move((49, 33));
         board.do_move((63, 55));
@@ -970,8 +950,8 @@ mod tests {
     #[test]
     fn pawn_moves_en_passant_is_not_added_for_other_pieces() {
         let mut board = board();
-        board.set(1, ins_you(Piece::Knight));
-        board.set(19, ins_opp(Piece::Pawn));
+        board.set(1, ins_white(Piece::Knight));
+        board.set(19, ins_black(Piece::Pawn));
 
         board.do_move((1, 18));
 
@@ -984,8 +964,8 @@ mod tests {
     #[test]
     fn pawn_moves_en_passant_is_not_added_for_pieces_of_same_color() {
         let mut board = board();
-        board.set(9, ins_opp(Piece::Pawn));
-        board.set(26, ins_opp(Piece::Pawn));
+        board.set(9, ins_black(Piece::Pawn));
+        board.set(26, ins_black(Piece::Pawn));
 
         board.do_move((9, 25));
 
@@ -998,9 +978,9 @@ mod tests {
     #[test]
     fn pawn_moves_hit_west_and_east() {
         let mut board = board();
-        board.set(36, ins_you(Piece::Pawn));
-        board.set(27, ins_opp(Piece::Pawn));
-        board.set(29, ins_opp(Piece::Pawn));
+        board.set(36, ins_white(Piece::Pawn));
+        board.set(27, ins_black(Piece::Pawn));
+        board.set(29, ins_black(Piece::Pawn));
 
         assert_moves_eq(&Piece::get_moves_for_pawn_at(36, &board), 36, &[27, 28, 29]);
     }
@@ -1008,7 +988,7 @@ mod tests {
     #[test]
     fn queen_moves_no_hit() {
         let mut board = board();
-        board.set(36, ins_you(Piece::Queen));
+        board.set(36, ins_white(Piece::Queen));
 
         assert_moves_eq(
             &Piece::get_moves_for_queen_at(36, &board),
@@ -1023,9 +1003,9 @@ mod tests {
     #[test]
     fn queen_moves_hit_ally_and_opponent() {
         let mut board = board();
-        board.set(35, ins_you(Piece::Pawn));
-        board.set(36, ins_you(Piece::Queen));
-        board.set(37, ins_opp(Piece::Pawn));
+        board.set(35, ins_white(Piece::Pawn));
+        board.set(36, ins_white(Piece::Queen));
+        board.set(37, ins_black(Piece::Pawn));
 
         assert_moves_eq(
             &Piece::get_moves_for_queen_at(36, &board),
@@ -1039,7 +1019,7 @@ mod tests {
     #[test]
     fn rook_moves_no_hit() {
         let mut board = board();
-        board.set(36, ins_you(Piece::Rook));
+        board.set(36, ins_white(Piece::Rook));
 
         assert_moves_eq(
             &Piece::get_moves_for_rook_at(36, &board),
@@ -1051,9 +1031,9 @@ mod tests {
     #[test]
     fn rook_moves_hit_ally_and_opponent() {
         let mut board = board();
-        board.set(35, ins_you(Piece::Pawn));
-        board.set(36, ins_you(Piece::Rook));
-        board.set(37, ins_opp(Piece::Pawn));
+        board.set(35, ins_white(Piece::Pawn));
+        board.set(36, ins_white(Piece::Rook));
+        board.set(37, ins_black(Piece::Pawn));
 
         assert_moves_eq(
             &Piece::get_moves_for_rook_at(36, &board),
@@ -1086,15 +1066,16 @@ mod tests {
         board
     }
 
-    fn ins_opp(piece: Piece) -> Option<PieceInstance> {
-        let mut ins = PieceInstance::new(Player::Opponent, piece);
-        ins.was_moved = true;
-
-        Some(ins)
+    fn ins_black(piece: Piece) -> Option<PieceInstance> {
+        ins(Color::Black, piece)
     }
 
-    fn ins_you(piece: Piece) -> Option<PieceInstance> {
-        let mut ins = PieceInstance::new(Player::You, piece);
+    fn ins_white(piece: Piece) -> Option<PieceInstance> {
+        ins(Color::White, piece)
+    }
+
+    fn ins(color: Color, piece: Piece) -> Option<PieceInstance> {
+        let mut ins = PieceInstance::new(color, piece);
         ins.was_moved = true;
 
         Some(ins)
