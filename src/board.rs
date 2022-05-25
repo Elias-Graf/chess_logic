@@ -11,6 +11,10 @@ pub type Move = (usize, usize);
 
 #[derive(Clone)]
 pub struct Board {
+    pub can_black_castle_king_side: bool,
+    pub can_black_castle_queen_side: bool,
+    pub can_white_castle_king_side: bool,
+    pub can_white_castle_queen_side: bool,
     pub opponent_color: Color,
     pub piece_eligible_for_en_passant: Vec<(usize, usize)>,
     pub poses: [Option<PieceInstance>; Self::SIZE as usize],
@@ -116,6 +120,29 @@ impl Board {
         // Execute en passant moves for this turn
         self.check_and_execute_en_passant(&src_ins, hit_idx);
 
+        if src_ins.piece == Piece::King {
+            match self.get_color_of_player(&src_ins.player) {
+                Color::Black => {
+                    self.can_black_castle_king_side = false;
+                    self.can_black_castle_queen_side = false;
+                }
+                Color::White => {
+                    self.can_white_castle_king_side = false;
+                    self.can_white_castle_queen_side = false;
+                }
+            }
+        }
+
+        if src_ins.piece == Piece::Rook {
+            match (self.get_color_of_player(&src_ins.player), src_idx) {
+                (Color::Black, 0) => self.can_black_castle_queen_side = false,
+                (Color::Black, 7) => self.can_black_castle_king_side = false,
+                (Color::White, 56) => self.can_white_castle_queen_side = false,
+                (Color::White, 63) => self.can_white_castle_king_side = false,
+                _ => (),
+            }
+        }
+
         self.check_and_execute_castle(&src_ins, src_idx, hit_idx);
 
         self.set(hit_idx, Some(src_ins));
@@ -179,6 +206,10 @@ impl Board {
         // https://github.com/rust-lang/rust/issues/44796
         const INIT_POS: Option<PieceInstance> = None;
         Self {
+            can_black_castle_king_side: true,
+            can_black_castle_queen_side: true,
+            can_white_castle_king_side: true,
+            can_white_castle_queen_side: true,
             opponent_color,
             piece_eligible_for_en_passant: Vec::with_capacity(2),
             poses: [INIT_POS; Self::SIZE as usize],

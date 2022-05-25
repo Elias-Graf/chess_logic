@@ -1,6 +1,6 @@
 use crate::{
     board::{self, Move},
-    Board, Player,
+    Board, Color, Player,
 };
 
 // TODO: Investigate if this constants should really be defined here.
@@ -99,53 +99,29 @@ impl Piece {
             .get(king_idx)
             .as_ref()
             .unwrap_or_else(|| panic!("castle check failed, no piece at index '{}'", king_idx));
+        let king_color = board.get_color_of_player(&king_ins.player);
+        let attacker = Player::get_opposing(&king_ins.player);
 
-        // TODO: refactor castling
-
-        if !king_ins.was_moved {
-            let attacker = Player::get_opposing(&king_ins.player);
-            let west_rook_idx = (king_idx as i8
-                + TO_EDGE_OFFSETS[king_idx][DIR_WEST] as i8 * DIR_OFFSETS[DIR_WEST])
-                as usize;
-
-            let mut west_invalid = false;
-            for i in ((west_rook_idx as i8 + DIR_OFFSETS[DIR_EAST]) as usize)..king_idx {
-                if board.get(i).is_some() || board.is_pos_attacked_by(i, &attacker) {
-                    west_invalid = true;
-                    break;
-                }
-            }
-
-            if !west_invalid {
-                if let Some(west_rook) = board.get(west_rook_idx) {
-                    if !west_rook.was_moved {
-                        for i in (west_rook_idx + 2)..(king_idx - 1) {
-                            moves.push((king_idx, i));
+        let push_castle_move_if_applicable =
+            &mut |can_castle: bool, poses_to_validate: &[usize], move_to_add: usize| {
+                if can_castle {
+                    for &pos in poses_to_validate {
+                        if board.get(pos).is_some() || board.is_pos_attacked_by(pos, &attacker) {
+                            return;
                         }
                     }
-                }
-            }
 
-            let east_rook_idx = (king_idx as i8
-                + TO_EDGE_OFFSETS[king_idx][DIR_EAST] as i8 * DIR_OFFSETS[DIR_EAST])
-                as usize;
-
-            let mut east_invalid = false;
-            for i in ((king_idx as i8 + DIR_OFFSETS[DIR_EAST]) as usize)..east_rook_idx {
-                if board.get(i).is_some() || board.is_pos_attacked_by(i, &attacker) {
-                    east_invalid = true;
+                    moves.push((king_idx, move_to_add));
                 }
-            }
+            };
 
-            if !east_invalid {
-                if let Some(east_rook) = board.get(east_rook_idx) {
-                    if !east_rook.was_moved {
-                        for i in (king_idx + 2)..(east_rook_idx) {
-                            moves.push((king_idx, i));
-                        }
-                    }
-                }
-            }
+        if king_color == &Color::Black {
+            push_castle_move_if_applicable(board.can_black_castle_queen_side, &[1, 2, 3], 2);
+            push_castle_move_if_applicable(board.can_black_castle_king_side, &[5, 6], 6);
+        }
+        if king_color == &Color::White {
+            push_castle_move_if_applicable(board.can_white_castle_queen_side, &[57, 58, 59], 58);
+            push_castle_move_if_applicable(board.can_white_castle_king_side, &[61, 62], 62);
         }
 
         moves
@@ -537,6 +513,18 @@ mod tests {
     }
 
     #[test]
+    fn knight_moves_no_hit() {
+        let mut board = board();
+        board.set(36, ins_you(Piece::Knight));
+
+        assert_moves_eq(
+            &Piece::get_moves_for_knight_at(36, &board),
+            36,
+            &[19, 21, 26, 30, 42, 51, 53, 46],
+        );
+    }
+
+    #[test]
     fn king_moves_no_hit() {
         let mut board = board();
         board.set(36, ins_you(Piece::King));
@@ -579,15 +567,242 @@ mod tests {
     }
 
     #[test]
-    fn knight_moves_no_hit() {
-        let mut board = board();
-        board.set(36, ins_you(Piece::Knight));
+    fn king_moves_castle_white_queen_side() {
+        let mut board = board_king_moves_castle_white();
+        board.do_move((63, 55));
 
         assert_moves_eq(
-            &Piece::get_moves_for_knight_at(36, &board),
-            36,
-            &[19, 21, 26, 30, 42, 51, 53, 46],
+            &Piece::get_moves_for_king_at(60, &board),
+            60,
+            &[51, 52, 53, 58, 59, 61],
         );
+    }
+
+    #[test]
+    fn king_moves_castle_white_king_side() {
+        let mut board = board_king_moves_castle_white();
+        board.do_move((56, 48));
+
+        assert_moves_eq(
+            &Piece::get_moves_for_king_at(60, &board),
+            60,
+            &[51, 52, 53, 59, 61, 62],
+        );
+    }
+
+    #[test]
+    fn king_moves_castle_black_queen_side() {
+        let mut board = board_king_moves_castle_black();
+        board.do_move((7, 15));
+
+        assert_moves_eq(
+            &Piece::get_moves_for_king_at(4, &board),
+            4,
+            &[2, 3, 5, 11, 12, 13],
+        );
+    }
+
+    #[test]
+    fn king_moves_castle_black_king_side() {
+        let mut board = board_king_moves_castle_black();
+        board.do_move((0, 8));
+
+        assert_moves_eq(
+            &Piece::get_moves_for_king_at(4, &board),
+            4,
+            &[3, 5, 6, 11, 12, 13],
+        );
+    }
+
+    #[test]
+    fn king_moves_castle_only_works_if_the_king_has_not_been_moved_yet() {
+        let mut board = board_king_moves_castle_white();
+
+        board.do_move((60, 52));
+        board.do_move((52, 60));
+
+        assert_moves_eq(
+            &Piece::get_moves_for_king_at(60, &board),
+            60,
+            &[51, 52, 53, 59, 61],
+        );
+    }
+
+    #[test]
+    fn king_moves_castle_only_works_if_the_rooks_have_not_been_moved_yet() {
+        let mut board = board();
+        board.set(56, ins_you(Piece::Rook));
+        board.set(60, ins_you(Piece::King));
+        board.set(63, ins_you(Piece::Rook));
+
+        board.do_move((56, 48));
+        board.do_move((48, 56));
+
+        board.do_move((63, 55));
+        board.do_move((55, 63));
+
+        assert_moves_eq(
+            &Piece::get_moves_for_king_at(60, &board),
+            60,
+            &[51, 52, 53, 59, 61],
+        );
+    }
+
+    #[test]
+    fn king_moves_castle_only_works_if_no_square_between_is_attacked_white_queen_side() {
+        let board = board_king_moves_castle_white();
+
+        for i in 49..52 {
+            let mut board = board.clone();
+            board.set(i, ins_opp(Piece::Pawn));
+
+            assert_moves_eq(
+                &Piece::get_moves_for_king_at(60, &board),
+                60,
+                &[51, 52, 53, 59, 61, 62],
+            );
+        }
+    }
+
+    #[test]
+    fn king_moves_castle_only_works_if_no_square_between_is_attacked_white_king_side() {
+        let board = board_king_moves_castle_white();
+
+        for i in 53..55 {
+            let mut board = board.clone();
+            board.set(i, ins_opp(Piece::Pawn));
+
+            assert_moves_eq(
+                &Piece::get_moves_for_king_at(60, &board),
+                60,
+                &[51, 52, 53, 58, 59, 61],
+            );
+        }
+    }
+
+    #[test]
+    fn king_moves_castle_only_works_if_no_square_between_is_attacked_black_queen_side() {
+        let board = board_king_moves_castle_black();
+
+        for i in 9..12 {
+            let mut board = board.clone();
+            board.set(i, ins_you(Piece::Pawn));
+
+            assert_moves_eq(
+                &Piece::get_moves_for_king_at(4, &board),
+                4,
+                &[3, 5, 6, 11, 12, 13],
+            );
+        }
+    }
+
+    #[test]
+    fn king_moves_castle_only_works_if_no_square_between_is_attacked_black_king_side() {
+        let board = board_king_moves_castle_black();
+
+        for i in 13..15 {
+            let mut board = board.clone();
+            board.set(i, ins_you(Piece::Pawn));
+
+            assert_moves_eq(
+                &Piece::get_moves_for_king_at(4, &board),
+                4,
+                &[2, 3, 5, 11, 12, 13],
+            );
+        }
+    }
+
+    #[test]
+    fn king_moves_castle_does_not_work_if_piece_on_square_between_white_queen_side() {
+        let board = board_king_moves_castle_white();
+
+        // The following tests are not in a loop, as in the last variant, the blocking
+        // pice is right next to the king, and the resulting moves are different.
+        {
+            let mut board = board.clone();
+            board.set(57, ins_you(Piece::Rook));
+
+            assert_moves_eq(
+                &Piece::get_moves_for_king_at(60, &board),
+                60,
+                &[51, 52, 53, 59, 61, 62],
+            );
+        }
+
+        {
+            let mut board = board.clone();
+            board.set(58, ins_you(Piece::Rook));
+
+            assert_moves_eq(
+                &Piece::get_moves_for_king_at(60, &board),
+                60,
+                &[51, 52, 53, 59, 61, 62],
+            );
+        }
+
+        {
+            let mut board = board.clone();
+            board.set(59, ins_you(Piece::Rook));
+
+            assert_moves_eq(
+                &Piece::get_moves_for_king_at(60, &board),
+                60,
+                &[51, 52, 53, 61, 62],
+            );
+        }
+    }
+
+    #[test]
+    fn king_moves_castle_does_not_work_if_piece_on_square_between_white_king_side() {
+        let board = board_king_moves_castle_white();
+
+        // The following tests are not in a loop, as in the first variant, the blocking
+        // piece is right next to the king, and the resulting moves are different.
+        {
+            let mut board = board.clone();
+            board.set(61, ins_you(Piece::Rook));
+
+            assert_moves_eq(
+                &Piece::get_moves_for_king_at(60, &board),
+                60,
+                &[51, 52, 53, 58, 59],
+            );
+        }
+
+        {
+            let mut board = board.clone();
+            board.set(62, ins_you(Piece::Rook));
+
+            assert_moves_eq(
+                &Piece::get_moves_for_king_at(60, &board),
+                60,
+                &[51, 52, 53, 58, 59, 61],
+            );
+        }
+    }
+
+    fn board_king_moves_castle_white() -> Board {
+        let mut board = board();
+        board.can_white_castle_king_side = true;
+        board.can_white_castle_queen_side = true;
+
+        board.set(56, ins_you(Piece::Rook));
+        board.set(60, ins_you(Piece::King));
+        board.set(63, ins_you(Piece::Rook));
+
+        board
+    }
+
+    fn board_king_moves_castle_black() -> Board {
+        let mut board = board();
+        board.can_black_castle_king_side = true;
+        board.can_black_castle_queen_side = true;
+
+        board.set(0, ins_opp(Piece::Rook));
+        board.set(4, ins_opp(Piece::King));
+        board.set(7, ins_opp(Piece::Rook));
+
+        board
     }
 
     #[test]
@@ -658,225 +873,6 @@ mod tests {
             54,
             &[37, 39, 44, 60],
         );
-    }
-
-    #[test]
-    fn king_moves_castle_you_west() {
-        let board = board_king_moves_castle_you_west();
-
-        assert_moves_eq(
-            &Piece::get_moves_for_king_at(60, &board),
-            60,
-            &[51, 52, 53, 58, 59, 61],
-        );
-    }
-
-    #[test]
-    fn king_moves_castle_you_east() {
-        let board = board_king_moves_castle_you_east();
-
-        assert_moves_eq(
-            &Piece::get_moves_for_king_at(60, &board),
-            60,
-            &[51, 52, 53, 59, 61, 62],
-        );
-    }
-
-    #[test]
-    fn king_moves_castle_opponent_west() {
-        let board = board_king_moves_castle_opponent_west();
-
-        assert_moves_eq(
-            &Piece::get_moves_for_king_at(4, &board),
-            4,
-            &[2, 3, 5, 11, 12, 13],
-        );
-    }
-
-    #[test]
-    fn king_moves_castle_opponent_east() {
-        let board = board_king_moves_castle_opponent_east();
-
-        assert_moves_eq(
-            &Piece::get_moves_for_king_at(4, &board),
-            4,
-            &[3, 5, 6, 11, 12, 13],
-        );
-    }
-
-    #[test]
-    fn king_moves_castle_only_works_if_the_rooks_have_not_been_moved_yet() {
-        let mut board = board();
-        board.set(56, ins_you(Piece::Rook));
-        board.set(60, Some(PieceInstance::new(Player::You, Piece::King)));
-        board.set(63, ins_you(Piece::Rook));
-
-        assert_moves_eq(
-            &Piece::get_moves_for_king_at(60, &board),
-            60,
-            &[51, 52, 53, 59, 61],
-        );
-    }
-
-    #[test]
-    fn king_moves_castle_only_works_if_no_square_between_is_attacked_you_west() {
-        let board = board_king_moves_castle_you_west();
-
-        for i in 49..52 {
-            let mut board = board.clone();
-            board.set(i, ins_opp(Piece::Pawn));
-
-            assert_moves_eq(
-                &Piece::get_moves_for_king_at(60, &board),
-                60,
-                &[51, 52, 53, 59, 61],
-            );
-        }
-    }
-
-    #[test]
-    fn king_moves_castle_only_works_if_no_square_between_is_attacked_you_east() {
-        let board = board_king_moves_castle_you_east();
-
-        for i in 53..55 {
-            let mut board = board.clone();
-            board.set(i, ins_opp(Piece::Pawn));
-
-            assert_moves_eq(
-                &Piece::get_moves_for_king_at(60, &board),
-                60,
-                &[51, 52, 53, 59, 61],
-            );
-        }
-    }
-
-    #[test]
-    fn king_moves_castle_only_works_if_no_square_between_is_attacked_opponent_west() {
-        let board = board_king_moves_castle_opponent_west();
-
-        for i in 9..12 {
-            let mut board = board.clone();
-            board.set(i, ins_you(Piece::Pawn));
-
-            assert_moves_eq(
-                &Piece::get_moves_for_king_at(4, &board),
-                4,
-                &[3, 5, 11, 12, 13],
-            );
-        }
-    }
-
-    #[test]
-    fn king_moves_castle_only_works_if_no_square_between_is_attacked_opponent_east() {
-        let board = board_king_moves_castle_opponent_east();
-
-        for i in 13..15 {
-            let mut board = board.clone();
-            board.set(i, ins_you(Piece::Pawn));
-
-            assert_moves_eq(
-                &Piece::get_moves_for_king_at(4, &board),
-                4,
-                &[3, 5, 11, 12, 13],
-            );
-        }
-    }
-
-    #[test]
-    fn king_moves_castle_does_not_work_if_piece_on_square_between_you_west() {
-        let board = board_king_moves_castle_you_west();
-
-        // The following tests are not in a loop, as in the last variant, the blocking
-        // pice is right next to the king, and the resulting moves are different.
-        {
-            let mut board = board.clone();
-            board.set(57, ins_you(Piece::Rook));
-
-            assert_moves_eq(
-                &Piece::get_moves_for_king_at(60, &board),
-                60,
-                &[51, 52, 53, 59, 61],
-            );
-        }
-
-        {
-            let mut board = board.clone();
-            board.set(58, ins_you(Piece::Rook));
-
-            assert_moves_eq(
-                &Piece::get_moves_for_king_at(60, &board),
-                60,
-                &[51, 52, 53, 59, 61],
-            );
-        }
-
-        {
-            let mut board = board.clone();
-            board.set(59, ins_you(Piece::Rook));
-
-            assert_moves_eq(
-                &Piece::get_moves_for_king_at(60, &board),
-                60,
-                &[51, 52, 53, 61],
-            );
-        }
-    }
-
-    #[test]
-    fn king_moves_castle_does_not_work_if_piece_on_square_between_you_east() {
-        let board = board_king_moves_castle_you_east();
-
-        // The following tests are not in a loop, as in the first variant, the blocking
-        // piece is right next to the king, and the resulting moves are different.
-        {
-            let mut board = board.clone();
-            board.set(61, ins_you(Piece::Rook));
-
-            assert_moves_eq(
-                &Piece::get_moves_for_king_at(60, &board),
-                60,
-                &[51, 52, 53, 59],
-            );
-        }
-
-        {
-            let mut board = board.clone();
-            board.set(62, ins_you(Piece::Rook));
-
-            assert_moves_eq(
-                &Piece::get_moves_for_king_at(60, &board),
-                60,
-                &[51, 52, 53, 59, 61],
-            );
-        }
-    }
-
-    fn board_king_moves_castle_you_west() -> Board {
-        let mut board = board();
-        board.set(56, Some(PieceInstance::new(Player::You, Piece::Rook)));
-        board.set(60, Some(PieceInstance::new(Player::You, Piece::King)));
-        board
-    }
-
-    fn board_king_moves_castle_you_east() -> Board {
-        let mut board = board();
-        board.set(60, Some(PieceInstance::new(Player::You, Piece::King)));
-        board.set(63, Some(PieceInstance::new(Player::You, Piece::Rook)));
-        board
-    }
-
-    fn board_king_moves_castle_opponent_west() -> Board {
-        let mut board = board();
-        board.set(0, Some(PieceInstance::new(Player::Opponent, Piece::Rook)));
-        board.set(4, Some(PieceInstance::new(Player::Opponent, Piece::King)));
-        board
-    }
-
-    fn board_king_moves_castle_opponent_east() -> Board {
-        let mut board = board();
-        board.set(4, Some(PieceInstance::new(Player::Opponent, Piece::King)));
-        board.set(7, Some(PieceInstance::new(Player::Opponent, Piece::Rook)));
-        board
     }
 
     #[test]
@@ -1082,7 +1078,12 @@ mod tests {
     }
 
     fn board() -> Board {
-        Board::new(Color::Black, Color::White)
+        let mut board = Board::new(Color::White, Color::Black);
+        board.can_black_castle_king_side = false;
+        board.can_black_castle_queen_side = false;
+        board.can_white_castle_king_side = false;
+        board.can_white_castle_queen_side = false;
+        board
     }
 
     fn ins_opp(piece: Piece) -> Option<PieceInstance> {
