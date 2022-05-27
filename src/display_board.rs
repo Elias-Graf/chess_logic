@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 
-use crate::{Board, Piece};
+use crate::Board;
 
 pub const RESET_ANSI: &str = "\u{001b}[0m";
 
@@ -8,14 +8,14 @@ impl Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut val = "\n".to_owned();
 
-        for (idx, _) in (&self.poses).iter().enumerate() {
-            if idx % Board::WIDTH == 0 {
+        for i in 0..Board::SIZE {
+            if i % Board::WIDTH == 0 {
                 val.push('\n');
             }
 
-            let bg_color = get_bg_color_of(idx);
-            let fg_color = get_fg_color_of(idx, self);
-            let piece_symbol = get_piece_symbol_at(idx, self);
+            let bg_color = get_bg_color_of(i);
+            let fg_color = get_fg_color_of(i, self);
+            let piece_symbol = get_piece_symbol_at(i, self);
 
             val.push_str(&format!(
                 "{}{}{: ^4}{}",
@@ -42,7 +42,7 @@ pub fn get_fg_color_of(idx: usize, board: &Board) -> &str {
     const FG_BLACK: &str = "\u{001b}[38;5;0m";
     const FG_WHITE: &str = "\u{001b}[38;5;15m";
 
-    match board.get(idx) {
+    match board.get(&idx) {
         Some(ins) => match ins.color {
             crate::Color::Black => FG_BLACK,
             crate::Color::White => FG_WHITE,
@@ -52,8 +52,8 @@ pub fn get_fg_color_of(idx: usize, board: &Board) -> &str {
 }
 
 pub fn get_piece_symbol_at(idx: usize, board: &Board) -> &str {
-    match board.get(idx) {
-        Some(ins) => Piece::get_symbol_of(&ins.piece),
+    match board.get(&idx) {
+        Some(ins) => ins.piece.get_symbol(),
         None => "",
     }
 }

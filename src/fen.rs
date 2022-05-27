@@ -58,7 +58,7 @@ impl Fen for Board {
         let mut empty_count = 0;
 
         for idx in 0..Board::SIZE {
-            match self.get(idx) {
+            match self.get(&idx) {
                 None => empty_count += 1,
                 Some(ins) => {
                     if empty_count > 0 {
@@ -66,7 +66,7 @@ impl Fen for Board {
                         empty_count = 0;
                     }
 
-                    fen += &Fen::get_fen(ins);
+                    fen += &Fen::get_fen(&ins);
                 }
             }
 
@@ -88,7 +88,7 @@ impl Fen for Board {
     fn from_fen(fen: &str) -> Result<Board, String> {
         // Currently only the actual position of the pieces is supported.
         let fen = fen.split(' ').collect::<Vec<_>>()[0];
-        let mut board = Board::new(Color::White, Color::Black);
+        let mut board = Board::new_empty();
         let mut idx: usize = 0;
 
         for c in fen.chars() {
@@ -104,7 +104,7 @@ impl Fen for Board {
 
             let ins: PieceInstance = Fen::from_fen(&c.to_string())?;
 
-            board.set(idx, Some(ins));
+            board.set_by_idx(idx, Some(ins));
             idx += 1;
         }
 

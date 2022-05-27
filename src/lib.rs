@@ -1,6 +1,8 @@
+pub mod bit_board;
 pub mod board;
 pub mod display_board;
 pub mod fen;
+pub mod square;
 
 mod piece;
 
