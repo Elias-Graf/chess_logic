@@ -2,9 +2,9 @@ pub mod bit_board;
 pub mod board;
 pub mod display_board;
 pub mod fen;
+pub mod piece;
 pub mod square;
 
-mod piece;
 
 pub use board::Board;
 pub use piece::Piece;

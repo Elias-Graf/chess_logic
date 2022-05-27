@@ -189,43 +189,43 @@ impl Board {
     }
 
     pub fn get(&self, idx: &dyn BoardIdx) -> Option<PieceInstance> {
-        let i = &(idx.idx() as u64);
+        let i = idx.idx() as u64;
 
-        if bit_board::is_set(&self.black_bishops, i) {
+        if bit_board::is_set(self.black_bishops, i) {
             return Some(PieceInstance::new(Color::Black, Piece::Bishop));
         }
-        if bit_board::is_set(&self.black_king, i) {
+        if bit_board::is_set(self.black_king, i) {
             return Some(PieceInstance::new(Color::Black, Piece::King));
         }
-        if bit_board::is_set(&self.black_knights, i) {
+        if bit_board::is_set(self.black_knights, i) {
             return Some(PieceInstance::new(Color::Black, Piece::Knight));
         }
-        if bit_board::is_set(&self.black_pawns, i) {
+        if bit_board::is_set(self.black_pawns, i) {
             return Some(PieceInstance::new(Color::Black, Piece::Pawn));
         }
-        if bit_board::is_set(&self.black_queens, i) {
+        if bit_board::is_set(self.black_queens, i) {
             return Some(PieceInstance::new(Color::Black, Piece::Queen));
         }
-        if bit_board::is_set(&self.black_rooks, i) {
+        if bit_board::is_set(self.black_rooks, i) {
             return Some(PieceInstance::new(Color::Black, Piece::Rook));
         }
 
-        if bit_board::is_set(&self.white_bishops, i) {
+        if bit_board::is_set(self.white_bishops, i) {
             return Some(PieceInstance::new(Color::White, Piece::Bishop));
         }
-        if bit_board::is_set(&self.white_king, i) {
+        if bit_board::is_set(self.white_king, i) {
             return Some(PieceInstance::new(Color::White, Piece::King));
         }
-        if bit_board::is_set(&self.white_knights, i) {
+        if bit_board::is_set(self.white_knights, i) {
             return Some(PieceInstance::new(Color::White, Piece::Knight));
         }
-        if bit_board::is_set(&self.white_pawns, i) {
+        if bit_board::is_set(self.white_pawns, i) {
             return Some(PieceInstance::new(Color::White, Piece::Pawn));
         }
-        if bit_board::is_set(&self.white_queens, i) {
+        if bit_board::is_set(self.white_queens, i) {
             return Some(PieceInstance::new(Color::White, Piece::Queen));
         }
-        if bit_board::is_set(&self.white_rooks, i) {
+        if bit_board::is_set(self.white_rooks, i) {
             return Some(PieceInstance::new(Color::White, Piece::Rook));
         }
 
@@ -388,7 +388,7 @@ impl Board {
         // self.poses[idx] = pos;
 
         if let Some(ins) = pos.as_ref() {
-            let i = &(idx as u64);
+            let i = idx as u64;
 
             match (&ins.color, &ins.piece) {
                 (Color::Black, Piece::Bishop) => bit_board::set_bit(&mut self.black_bishops, i),
@@ -405,7 +405,7 @@ impl Board {
                 (Color::White, Piece::Rook) => bit_board::set_bit(&mut self.white_rooks, i),
             }
         } else {
-            let i = &(idx as u64);
+            let i = idx as u64;
 
             bit_board::clear_bit(&mut self.black_bishops, i);
             bit_board::clear_bit(&mut self.black_king, i);

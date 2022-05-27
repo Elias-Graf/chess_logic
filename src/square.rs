@@ -14,21 +14,34 @@ pub trait BoardIdx {
     fn idx(&self) -> i8;
 }
 
-impl Into<i8> for Square {
-    fn into(self) -> i8 {
-        self as i8
+impl From<Square> for i8 {
+    fn from(square: Square) -> Self {
+        square as i8
+    }
+}
+
+impl From<Square> for u64 {
+    fn from(square: Square) -> Self {
+        square as u64
+    }
+}
+
+
+impl BoardIdx for i8 {
+    fn idx(&self) -> i8 {
+        *self
+    }
+}
+
+impl BoardIdx for u64 {
+    fn idx(&self) -> i8 {
+        (*self) as i8
     }
 }
 
 impl BoardIdx for usize {
     fn idx(&self) -> i8 {
         (*self) as i8
-    }
-}
-
-impl BoardIdx for i8 {
-    fn idx(&self) -> i8 {
-        *self
     }
 }
 

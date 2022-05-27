@@ -1,4 +1,11 @@
-use crate::{board::MoveByIdx, Board, Color};
+use once_cell::sync::Lazy;
+
+use crate::{
+    bit_board::{self, ColoredMovedMask, MoveMask},
+    board::MoveByIdx,
+    square::Square,
+    Board, Color,
+};
 
 // TODO: Investigate if this constants should really be defined here.
 
@@ -16,6 +23,8 @@ pub const DIR_NORTH_WEST: usize = 7;
 pub const DIR_OFFSETS: [i8; 8] = [-8, -7, 1, 9, 8, 7, -1, -9];
 
 pub const TO_EDGE_OFFSETS: ToEdgeOffset = generate_to_edge_map();
+
+const PAWN_MOVE_MASK: Lazy<ColoredMovedMask> = Lazy::new(generate_pawn_move_mask);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Piece {
@@ -471,6 +480,34 @@ const fn generate_to_edge_map() -> ToEdgeOffset {
     }
 
     map
+}
+
+fn generate_pawn_move_mask() -> ColoredMovedMask {
+    const NOT_FILE_A: u64 = 18374403900871474942;
+    const NOT_FILE_H: u64 = 9187201950435737471;
+
+    let mut mask = ColoredMovedMask::new();
+
+    for i in 0..Board::SIZE as u64 {
+        let mut board = 0;
+        bit_board::set_bit(&mut board, i);
+
+        if bit_board::is_set(board & NOT_FILE_A, i) {
+            mask[Color::White][&i] |= board >> bit_board::NO_WE;
+        }
+        if bit_board::is_set(board & NOT_FILE_H, i) {
+            mask[Color::White][&i] |= board >> bit_board::NO_EA;
+        }
+
+        if bit_board::is_set(board & NOT_FILE_A, i) {
+            mask[Color::Black][&i] |= board << bit_board::SO_WE;
+        }
+        if bit_board::is_set(board & NOT_FILE_H, i) {
+            mask[Color::Black][&i] |= board << bit_board::SO_EA;
+        }
+    }
+
+    mask
 }
 
 #[cfg(test)]
@@ -1111,3 +1148,4 @@ mod tests {
         out
     }
 }
+
