@@ -24,6 +24,12 @@ pub const DIR_OFFSETS: [i8; 8] = [-8, -7, 1, 9, 8, 7, -1, -9];
 
 pub const TO_EDGE_OFFSETS: ToEdgeOffset = generate_to_edge_map();
 
+const NOT_FILE_A: u64 = 18374403900871474942;
+const NOT_FILE_AB: u64 = 18229723555195321596;
+const NOT_FILE_GH: u64 = 4557430888798830399;
+const NOT_FILE_H: u64 = 9187201950435737471;
+
+const KNIGHT_MOVE_MASK: Lazy<MoveMask> = Lazy::new(generate_knight_move_mask);
 const PAWN_MOVE_MASK: Lazy<ColoredMovedMask> = Lazy::new(generate_pawn_move_mask);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -482,10 +488,39 @@ const fn generate_to_edge_map() -> ToEdgeOffset {
     map
 }
 
-fn generate_pawn_move_mask() -> ColoredMovedMask {
-    const NOT_FILE_A: u64 = 18374403900871474942;
-    const NOT_FILE_H: u64 = 9187201950435737471;
+fn generate_knight_move_mask() -> MoveMask {
+    let mut mask = MoveMask::new();
 
+    for i in 0..Board::SIZE as u64 {
+        let mut board = 0;
+        bit_board::set_bit(&mut board, i);
+
+        if bit_board::is_set(board & NOT_FILE_A, i) {
+            mask[&i] |= board >> bit_board::NORTH >> bit_board::NO_WE;
+        }
+        if bit_board::is_set(board & NOT_FILE_H, i) {
+            mask[&i] |= board >> bit_board::NORTH >> bit_board::NO_EA;
+        }
+        if bit_board::is_set(board & NOT_FILE_GH, i) {
+            mask[&i] |= board << bit_board::EAST >> bit_board::NO_EA;
+            mask[&i] |= board << bit_board::EAST << bit_board::SO_EA;
+        }
+        if bit_board::is_set(board & NOT_FILE_A, i) {
+            mask[&i] |= board << bit_board::SOUTH << bit_board::SO_WE;
+        }
+        if bit_board::is_set(board & NOT_FILE_H, i) {
+            mask[&i] |= board << bit_board::SOUTH << bit_board::SO_EA;
+        }
+        if bit_board::is_set(board & NOT_FILE_AB, i) {
+            mask[&i] |= board >> bit_board::WEST << bit_board::SO_WE;
+            mask[&i] |= board >> bit_board::WEST >> bit_board::NO_WE;
+        }
+    }
+
+    mask
+}
+
+fn generate_pawn_move_mask() -> ColoredMovedMask {
     let mut mask = ColoredMovedMask::new();
 
     for i in 0..Board::SIZE as u64 {
@@ -1148,4 +1183,3 @@ mod tests {
         out
     }
 }
-
