@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use crate::{
     bit_board,
     piece::{DIR_EAST, DIR_NORTH, DIR_OFFSETS, DIR_SOUTH, DIR_WEST, TO_EDGE_OFFSETS},
-    square::{BoardIdx, Square},
+    square::{BoardPos, Square},
     Color, Piece,
 };
 
@@ -188,7 +188,7 @@ impl Board {
         self.set_by_idx(dst_idx as usize, Some(src_ins));
     }
 
-    pub fn get(&self, idx: &dyn BoardIdx) -> Option<PieceInstance> {
+    pub fn get(&self, idx: &dyn BoardPos) -> Option<PieceInstance> {
         let i = idx.idx() as u64;
 
         if bit_board::is_set(self.black_bishops, i) {
@@ -241,7 +241,7 @@ impl Board {
         }
     }
 
-    pub fn is_pos_attacked_by(&self, pos_idx: &dyn BoardIdx, atk_color: &Color) -> bool {
+    pub fn is_pos_attacked_by(&self, pos_idx: &dyn BoardPos, atk_color: &Color) -> bool {
         for iter in 0..Board::SIZE {
             let ins = match self.get(&iter) {
                 Some(i) => i,
@@ -380,10 +380,11 @@ impl Board {
         self.piece_eligible_for_en_passant.clear()
     }
 
-    pub fn set(&mut self, idx: &dyn BoardIdx, color: Color, piece: Piece) {
+    pub fn set(&mut self, idx: &dyn BoardPos, color: Color, piece: Piece) {
         self.set_by_idx(idx.idx() as usize, Some(PieceInstance::new(color, piece)));
     }
 
+    #[deprecated(note = "simply use `set` instead")]
     pub fn set_by_idx(&mut self, idx: usize, pos: Option<PieceInstance>) {
         // self.poses[idx] = pos;
 

@@ -1,9 +1,11 @@
+use std::ops::Range;
+
 use once_cell::sync::Lazy;
 
 use crate::{
     bit_board::{self, ColoredMovMask, MoveMask},
     board::MoveByIdx,
-    square::Square,
+    square::{BoardPos, Square},
     Board, Color,
 };
 
@@ -46,6 +48,39 @@ pub enum Piece {
 }
 
 impl Piece {
+    fn get_bishop_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
+        let i = pos.idx() as u64;
+        let board = bit_board::with_bit_at(i);
+
+        let mut attacks = 0;
+
+        let file = i % Board::HEIGHT as u64;
+        let rank = i / Board::HEIGHT as u64;
+
+        let to_so_ea = u64::min(Board::WIDTH as u64 - file, Board::HEIGHT as u64 - rank);
+        let to_so_we = u64::min(file, Board::HEIGHT as u64 - rank);
+        let to_no_we = u64::min(file, rank) + 1;
+
+        let dirs: [(Range<u64>, fn(u64, u64) -> u64); 4] = [
+            (1..u64::min(Board::WIDTH as u64 - file, rank), |b, i| b >> bit_board::NO_EA * i),
+            (1..to_so_ea, |b, i| b << bit_board::SO_EA * i),
+            (1..to_so_we, |b, i| b << bit_board::SO_WE * i),
+            (1..to_no_we, |b, i| b >> bit_board::NO_WE * i),
+        ];
+
+        for (range, dir_shift) in dirs {
+            for iter in range {
+                attacks |= dir_shift(board, iter);
+
+                if bit_board::is_set(dir_shift(blockers, iter), i) {
+                    break;
+                }
+            }
+        }
+
+        attacks
+    }
+
     fn get_moves_for_bishop_at(idx: usize, board: &Board) -> Vec<MoveByIdx> {
         let mut moves = Vec::new();
 
@@ -310,6 +345,35 @@ impl Piece {
         ));
 
         moves
+    }
+
+    fn get_rook_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
+        let i = pos.idx() as u64;
+        let board = bit_board::with_bit_at(i);
+
+        let mut attacks = 0;
+
+        let file = i % Board::HEIGHT as u64;
+        let rank = i / Board::HEIGHT as u64;
+
+        let dirs: [(Range<u64>, fn(u64, u64) -> u64); 4] = [
+            (1..rank + 1, |b, i| b >> bit_board::NORTH * i),
+            (1..Board::WIDTH as u64 - file, |b, i| b << bit_board::EAST * i),
+            (1..Board::HEIGHT as u64 - rank, |b, i| b << bit_board::SOUTH * i),
+            (1..file + 1, |b, i| b >> bit_board::WEST * i),
+        ];
+
+        for (range, dir_shift) in dirs {
+            for iter in range {
+                attacks |= dir_shift(board, iter);
+
+                if bit_board::is_set(dir_shift(blockers, iter), i) {
+                    break;
+                }
+            }
+        }
+
+        attacks
     }
 
     fn get_moves_for_rook_at(idx: usize, board: &Board) -> Vec<MoveByIdx> {
@@ -638,9 +702,54 @@ fn generate_rook_move_mask() -> MoveMask {
 
 #[cfg(test)]
 mod tests {
-    use crate::{board::PieceInstance, display_board, Color};
+    use crate::{board::PieceInstance, display_board, square::BoardPos, Color};
 
     use super::*;
+
+    #[test]
+    fn bishop_attacks_no_hit() {
+        assert_bit_boards_eq(
+            Piece::get_bishop_attacks_for(&Square::E4, 0),
+            &[
+                &Square::A8,
+                &Square::B1,
+                &Square::B7,
+                &Square::C2,
+                &Square::C6,
+                &Square::D3,
+                &Square::D5,
+                &Square::F3,
+                &Square::F5,
+                &Square::G2,
+                &Square::G6,
+                &Square::H1,
+                &Square::H7,
+            ],
+        )
+    }
+
+    #[test]
+    fn bishop_attacks_blockers() {
+        let mut blockers = 0;
+        bit_board::set_bit(&mut blockers, Square::C2.into());
+        bit_board::set_bit(&mut blockers, Square::C6.into());
+        bit_board::set_bit(&mut blockers, Square::G2.into());
+        bit_board::set_bit(&mut blockers, Square::G6.into());
+
+        assert_bit_boards_eq(
+            Piece::get_bishop_attacks_for(&Square::E4, blockers),
+            &[
+                &Square::C6,
+                &Square::C2,
+                &Square::D5,
+                &Square::D3,
+                &Square::F5,
+                &Square::F3,
+                &Square::G6,
+                &Square::G2,
+            ],
+        );
+    }
 
     #[test]
     fn bishop_moves_no_hit() {
@@ -1200,6 +1309,52 @@ mod tests {
     }
 
     #[test]
+    fn rook_attacks_no_hit() {
+        assert_bit_boards_eq(
+            Piece::get_rook_attacks_for(&Square::E4, 0),
+            &[
+                &Square::A4,
+                &Square::B4,
+                &Square::C4,
+                &Square::D4,
+                &Square::F4,
+                &Square::G4,
+                &Square::H4,
+                &Square::E1,
+                &Square::E2,
+                &Square::E3,
+                &Square::E5,
+                &Square::E6,
+                &Square::E7,
+                &Square::E8,
+            ],
+        );
+    }
+
+    #[test]
+    fn rook_attacks_blockers() {
+        let mut blockers = 0;
+        bit_board::set_bit(&mut blockers, Square::C4.into());
+        bit_board::set_bit(&mut blockers, Square::G4.into());
+        bit_board::set_bit(&mut blockers, Square::E6.into());
+        bit_board::set_bit(&mut blockers, Square::E2.into());
+
+        assert_bit_boards_eq(
+            Piece::get_rook_attacks_for(&Square::E4, blockers),
+            &[
+                &Square::C4,
+                &Square::D4,
+                &Square::E2,
+                &Square::E3,
+                &Square::E5,
+                &Square::E6,
+                &Square::F4,
+                &Square::G4,
+            ],
+        );
+    }
+
+    #[test]
     fn rook_moves_hit_ally_and_opponent() {
         let mut board = board();
         board.set_by_idx(35, ins_white(Piece::Pawn));
@@ -1226,6 +1381,22 @@ mod tests {
             "expected {}\nto equal{}",
             display_moves(&to_check),
             display_moves(&expected)
+        );
+    }
+
+    fn assert_bit_boards_eq(left: u64, positions: &[&dyn BoardPos]) {
+        let mut right = 0;
+
+        for pos in positions {
+            bit_board::set_bit(&mut right, pos.idx() as u64);
+        }
+
+        assert_eq!(
+            left,
+            right,
+            "expected\n{}\nto equal\n{}\n",
+            bit_board::display(left),
+            bit_board::display(right)
         );
     }
 

@@ -10,7 +10,7 @@ pub enum Square {
     A1, B1, C1, D1, E1, F1, G1, H1,
 }
 
-pub trait BoardIdx {
+pub trait BoardPos {
     fn idx(&self) -> i8;
 }
 
@@ -27,25 +27,25 @@ impl From<Square> for u64 {
 }
 
 
-impl BoardIdx for i8 {
+impl BoardPos for i8 {
     fn idx(&self) -> i8 {
         *self
     }
 }
 
-impl BoardIdx for u64 {
+impl BoardPos for u64 {
     fn idx(&self) -> i8 {
         (*self) as i8
     }
 }
 
-impl BoardIdx for usize {
+impl BoardPos for usize {
     fn idx(&self) -> i8 {
         (*self) as i8
     }
 }
 
-impl BoardIdx for Square {
+impl BoardPos for Square {
     fn idx(&self) -> i8 {
         (*self).into()
     }

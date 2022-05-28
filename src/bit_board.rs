@@ -1,47 +1,53 @@
 use std::ops::{Index, IndexMut};
 
-use crate::{square::BoardIdx, Board, Color};
+use crate::{square::BoardPos, Board, Color};
 
 /// # Usage
-/// ```
+/// ```ignore
 /// board >> NORTH
 /// ```
 pub const NORTH: u64 = 8;
 /// # Usage
-/// ```
+/// ```ignore
 /// board >> NO_EA
 /// ```
 pub const NO_EA: u64 = 7;
 /// # Usage
-/// ```
+/// ```ignore
 /// board << EAST
 /// ```
 pub const EAST: u64 = 1;
 /// # Usage
-/// ```
+/// ```ignore
 /// board << SO_EA
 /// ```
 pub const SO_EA: u64 = 9;
 /// # Usage
-/// ```
+/// ```ignore
 /// board << SOUTH
 /// ```
 pub const SOUTH: u64 = 8;
 /// # Usage
-/// ```
+/// ```ignore
 /// board << SO_WE
 /// ```
 pub const SO_WE: u64 = 7;
 /// # Usage
-/// ```
+/// ```ignore
 /// board >> WEST
 /// ```
 pub const WEST: u64 = 1;
 /// # Usage
-/// ```
+/// ```ignore
 /// board >> NO_WE
 /// ```
 pub const NO_WE: u64 = 9;
+
+pub fn with_bit_at(i: u64) -> u64 {
+    let mut board = 0;
+    set_bit(&mut board, i);
+    board
+}
 
 pub fn is_set(board: u64, i: u64) -> bool {
     get_bit(board, i) > 0
@@ -95,16 +101,16 @@ impl MoveMask {
     }
 }
 
-impl Index<&dyn BoardIdx> for MoveMask {
+impl Index<&dyn BoardPos> for MoveMask {
     type Output = u64;
 
-    fn index(&self, index: &dyn BoardIdx) -> &Self::Output {
+    fn index(&self, index: &dyn BoardPos) -> &Self::Output {
         &self.squares[index.idx() as usize]
     }
 }
 
-impl IndexMut<&dyn BoardIdx> for MoveMask {
-    fn index_mut(&mut self, index: &dyn BoardIdx) -> &mut Self::Output {
+impl IndexMut<&dyn BoardPos> for MoveMask {
+    fn index_mut(&mut self, index: &dyn BoardPos) -> &mut Self::Output {
         &mut self.squares[index.idx() as usize]
     }
 }
