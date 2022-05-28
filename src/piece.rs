@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 
 use crate::{
-    bit_board::{self, ColoredMovedMask, MoveMask},
+    bit_board::{self, ColoredMovMask, MoveMask},
     board::MoveByIdx,
     square::Square,
     Board, Color,
@@ -32,7 +32,8 @@ const NOT_FILE_H: u64 = 9187201950435737471;
 const BISHOP_MOVE_MASK: Lazy<MoveMask> = Lazy::new(generate_bishop_move_mask);
 const KING_MOVE_MASK: Lazy<MoveMask> = Lazy::new(generate_king_move_mask);
 const KNIGHT_MOVE_MASK: Lazy<MoveMask> = Lazy::new(generate_knight_move_mask);
-const PAWN_MOVE_MASK: Lazy<ColoredMovedMask> = Lazy::new(generate_pawn_move_mask);
+const PAWN_MOVE_MASK: Lazy<ColoredMovMask> = Lazy::new(generate_pawn_move_mask);
+const ROOK_MOVE_MASK: Lazy<MoveMask> = Lazy::new(generate_rook_move_mask);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Piece {
@@ -578,8 +579,8 @@ fn generate_knight_move_mask() -> MoveMask {
     mask
 }
 
-fn generate_pawn_move_mask() -> ColoredMovedMask {
-    let mut mask = ColoredMovedMask::new();
+fn generate_pawn_move_mask() -> ColoredMovMask {
+    let mut mask = ColoredMovMask::new();
 
     for i in 0..Board::SIZE as u64 {
         let mut board = 0;
@@ -597,6 +598,38 @@ fn generate_pawn_move_mask() -> ColoredMovedMask {
         }
         if bit_board::is_set(board & NOT_FILE_H, i) {
             mask[Color::Black][&i] |= board << bit_board::SO_EA;
+        }
+    }
+
+    mask
+}
+
+fn generate_rook_move_mask() -> MoveMask {
+    let mut mask = MoveMask::new();
+
+    for i in 0..Board::SIZE as u64 {
+        let mut board = 0;
+        bit_board::set_bit(&mut board, i);
+
+        let file = i % Board::HEIGHT as u64;
+        let rank = i / Board::HEIGHT as u64;
+
+        let to_no_ea = u64::min((Board::WIDTH - 1) as u64 - file, rank);
+        let to_so_ea = u64::min(Board::WIDTH as u64 - file, Board::HEIGHT as u64 - rank) - 1;
+        let to_so_we = u64::min(file, (Board::HEIGHT - 1) as u64 - rank);
+        let to_no_we = u64::min(file, rank);
+
+        for iter in 1..to_no_ea {
+            mask[&i] |= board >> bit_board::NO_EA * iter;
+        }
+        for iter in 1..to_so_ea {
+            mask[&i] |= board << bit_board::SO_EA * iter;
+        }
+        for iter in 1..to_so_we {
+            mask[&i] |= board << bit_board::SO_WE * iter;
+        }
+        for iter in 1..to_no_we {
+            mask[&i] |= board >> bit_board::NO_WE * iter;
         }
     }
 

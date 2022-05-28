@@ -109,19 +109,19 @@ impl IndexMut<&dyn BoardIdx> for MoveMask {
     }
 }
 
-pub struct ColoredMovedMask {
+pub struct ColoredMovMask {
     masks: [MoveMask; 2],
 }
 
-impl ColoredMovedMask {
+impl ColoredMovMask {
     pub fn new() -> Self {
-        ColoredMovedMask {
+        ColoredMovMask {
             masks: [MoveMask::new(), MoveMask::new()],
         }
     }
 }
 
-impl Index<Color> for ColoredMovedMask {
+impl Index<Color> for ColoredMovMask {
     type Output = MoveMask;
 
     fn index(&self, index: Color) -> &Self::Output {
@@ -129,7 +129,7 @@ impl Index<Color> for ColoredMovedMask {
     }
 }
 
-impl IndexMut<Color> for ColoredMovedMask {
+impl IndexMut<Color> for ColoredMovMask {
     fn index_mut(&mut self, index: Color) -> &mut Self::Output {
         &mut self.masks[index as usize]
     }
