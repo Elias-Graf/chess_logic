@@ -71,7 +71,7 @@ pub fn display(board: u64) -> String {
         }
 
         val += match get_bit(board, i as u64) {
-            0 => " 0",
+            0 => " .",
             _ => " 1",
         };
 
