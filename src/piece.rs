@@ -3,7 +3,7 @@ use std::ops::Range;
 use once_cell::sync::Lazy;
 
 use crate::{
-    bit_board::{self, ColoredMovMask, MoveMask},
+    bit_board::{self, display, ColoredMovMask, MoveMask},
     board::MoveByIdx,
     square::{BoardPos, Square},
     Board, Color,
@@ -37,6 +37,31 @@ const KNIGHT_MOVE_MASK: Lazy<MoveMask> = Lazy::new(generate_knight_move_mask);
 const PAWN_MOVE_MASK: Lazy<ColoredMovMask> = Lazy::new(generate_pawn_move_mask);
 const ROOK_MOVE_MASK: Lazy<MoveMask> = Lazy::new(generate_rook_move_mask);
 
+#[rustfmt::skip]
+const BISHOP_RELEVANT_OCCUPANCY_BIT_COUNT: [u64; 64] = [
+    6, 5, 5, 5, 5, 5, 5, 6,
+    5, 5, 5, 5, 5, 5, 5, 5,
+    5, 5, 7, 7, 7, 7, 5, 5,
+    5, 5, 7, 9, 9, 7, 5, 5,
+    5, 5, 7, 9, 9, 7, 5, 5,
+    5, 5, 7, 7, 7, 7, 5, 5,
+    5, 5, 5, 5, 5, 5, 5, 5,
+    6, 5, 5, 5, 5, 5, 5, 6,
+];
+#[rustfmt::skip]
+const ROOK_RELEVANT_OCCUPANCY_BIT_COUNT: [u64; 64] = [
+    12, 11, 11, 11, 11, 11, 11, 12,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    12, 11, 11, 11, 11, 11, 11, 12,
+];
+
+pub fn main() {}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Piece {
     Bishop,
@@ -62,7 +87,9 @@ impl Piece {
         let to_no_we = u64::min(file, rank) + 1;
 
         let dirs: [(Range<u64>, fn(u64, u64) -> u64); 4] = [
-            (1..u64::min(Board::WIDTH as u64 - file, rank), |b, i| b >> bit_board::NO_EA * i),
+            (1..u64::min(Board::WIDTH as u64 - file, rank), |b, i| {
+                b >> bit_board::NO_EA * i
+            }),
             (1..to_so_ea, |b, i| b << bit_board::SO_EA * i),
             (1..to_so_we, |b, i| b << bit_board::SO_WE * i),
             (1..to_no_we, |b, i| b >> bit_board::NO_WE * i),
@@ -358,8 +385,12 @@ impl Piece {
 
         let dirs: [(Range<u64>, fn(u64, u64) -> u64); 4] = [
             (1..rank + 1, |b, i| b >> bit_board::NORTH * i),
-            (1..Board::WIDTH as u64 - file, |b, i| b << bit_board::EAST * i),
-            (1..Board::HEIGHT as u64 - rank, |b, i| b << bit_board::SOUTH * i),
+            (1..Board::WIDTH as u64 - file, |b, i| {
+                b << bit_board::EAST * i
+            }),
+            (1..Board::HEIGHT as u64 - rank, |b, i| {
+                b << bit_board::SOUTH * i
+            }),
             (1..file + 1, |b, i| b >> bit_board::WEST * i),
         ];
 
@@ -678,26 +709,93 @@ fn generate_rook_move_mask() -> MoveMask {
         let file = i % Board::HEIGHT as u64;
         let rank = i / Board::HEIGHT as u64;
 
-        let to_no_ea = u64::min((Board::WIDTH - 1) as u64 - file, rank);
-        let to_so_ea = u64::min(Board::WIDTH as u64 - file, Board::HEIGHT as u64 - rank) - 1;
-        let to_so_we = u64::min(file, (Board::HEIGHT - 1) as u64 - rank);
-        let to_no_we = u64::min(file, rank);
+        let to_north = rank;
+        let to_east = (Board::WIDTH as u64 - file) - 1;
+        let to_south = (Board::HEIGHT as u64 - rank) - 1;
+        let to_west = file;
 
-        for iter in 1..to_no_ea {
-            mask[&i] |= board >> bit_board::NO_EA * iter;
+        for iter in 1..to_north {
+            mask[&i] |= board >> bit_board::NORTH * iter;
         }
-        for iter in 1..to_so_ea {
-            mask[&i] |= board << bit_board::SO_EA * iter;
+        for iter in 1..to_east {
+            mask[&i] |= board << bit_board::EAST * iter;
         }
-        for iter in 1..to_so_we {
-            mask[&i] |= board << bit_board::SO_WE * iter;
+        for iter in 1..to_south {
+            mask[&i] |= board << bit_board::SOUTH * iter;
         }
-        for iter in 1..to_no_we {
-            mask[&i] |= board >> bit_board::NO_WE * iter;
+        for iter in 1..to_west {
+            mask[&i] |= board >> bit_board::WEST * iter;
         }
     }
 
     mask
+}
+
+/// Code that I'm not sure what it does, or why it's used.
+///
+/// 'bb' = Black Box.
+///
+/// The goal is to have no code here in the future.
+mod bb {
+    use super::*;
+
+    pub fn find_magic_number(pos: &dyn BoardPos, relevant_bits: u64, piece: Piece) -> u64 {
+        let mut occupancies = [0u64; 4096];
+        let mut attacks = [0u64; 4096];
+        let mut used_attacks = [0u64; 4096];
+
+        let (attack_mask, get_attacks_for): (u64, fn(&dyn BoardPos, u64) -> u64) = match piece {
+            Piece::Bishop => (BISHOP_MOVE_MASK[pos], Piece::get_bishop_attacks_for),
+            Piece::Rook => (ROOK_MOVE_MASK[pos], Piece::get_rook_attacks_for),
+            _ => panic!(
+                "only bishops and rooks are valid arguments, found '{:?}'",
+                piece
+            ),
+        };
+
+        let occupancy_indices = 1 << relevant_bits;
+
+        for i in 0..occupancy_indices {
+            occupancies[i] = bit_board::bb::set_occupancy(i as u64, relevant_bits, attack_mask);
+            attacks[i] = get_attacks_for(pos, occupancies[i]);
+        }
+
+        for random_count in 0..10000000000000u64 {
+            let magic_number = generate_magic_number();
+
+            if bit_board::count_set_bits((attack_mask * magic_number) & 0xFF00000000000000) < 6 {
+                continue;
+            }
+
+            let mut index = 0;
+            let mut failed = false;
+
+            while !failed && index < occupancy_indices {
+                let magic_index =
+                    ((occupancies[index] * magic_number) >> (64 - relevant_bits)) as usize;
+
+                if used_attacks[magic_index] == 0 {
+                    used_attacks[magic_index] = attacks[index];
+                } else if used_attacks[magic_index] != attacks[index] {
+                    failed = true;
+                }
+
+                index += 1;
+            }
+
+            if !failed {
+                return magic_number;
+            }
+        }
+
+        println!("magic number failed!");
+
+        0
+    }
+
+    pub fn generate_magic_number() -> u64 {
+        bit_board::random_u64() & bit_board::random_u64() & bit_board::random_u64()
+    }
 }
 
 #[cfg(test)]

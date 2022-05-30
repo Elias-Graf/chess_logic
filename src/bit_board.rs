@@ -43,6 +43,7 @@ pub const WEST: u64 = 1;
 /// ```
 pub const NO_WE: u64 = 9;
 
+/// Created a new board with a `1` at the specified index.
 pub fn with_bit_at(i: u64) -> u64 {
     let mut board = 0;
     set_bit(&mut board, i);
@@ -65,6 +66,61 @@ pub fn clear_bit(board: &mut u64, i: u64) {
     *board &= !(1 << i)
 }
 
+/// Calculates the number of bits set to `1`.
+pub fn count_set_bits(board: u64) -> u64 {
+    let mut board = board;
+    let mut count = 0;
+
+    while board > 0 {
+        count += 1;
+
+        board &= board - 1;
+    }
+
+    count
+}
+
+pub fn random_u64() -> u64 {
+    let n1 = bb::random_u32() as u64 & 0xFFFF;
+    let n2 = (bb::random_u32() as u64 & 0xFFFF) << 16;
+    let n3 = (bb::random_u32() as u64 & 0xFFFF) << 32;
+    let n4 = (bb::random_u32() as u64 & 0xFFFF) << 48;
+
+    n1 | n2 | n3 | n4
+}
+
+/// Returns the index of the first bit set to `1`.
+///
+/// This is also known as the least significant set bit. If no bits are set,
+/// the function will return `None`.
+pub fn get_first_set_bit(board: u64) -> Option<u64> {
+    if board == 0 {
+        return None;
+    }
+
+    let board = board as i64;
+    // Set all the bits to 1 up to the first bit.
+    let filled_up_to_first = ((board & -board) - 1) as u64;
+
+    // If the 1 bits are now counted, we can retrieve the index of it.
+    Some(count_set_bits(filled_up_to_first))
+}
+
+/// Displays a board in a human readable way.
+///
+/// For example:
+/// ```text
+/// 8   . . . . . . . .
+/// 7   . . . . . . . .
+/// 6   . . . . . . . .
+/// 5   . . 1 . 1 . . .
+/// 4   . . . . . . . .
+/// 3   . . . . . . . .
+/// 2   . . . . . . . .
+/// 1   . . . . . . . .
+///
+///     a b c d e f g h
+/// ```
 pub fn display(board: u64) -> String {
     let mut val = String::new();
 
@@ -87,6 +143,7 @@ pub fn display(board: u64) -> String {
     }
 
     val += "\n    a b c d e f g h";
+    val += &format!("\n\n    Decimal: {}", board);
 
     val
 }
@@ -138,5 +195,56 @@ impl Index<Color> for ColoredMovMask {
 impl IndexMut<Color> for ColoredMovMask {
     fn index_mut(&mut self, index: Color) -> &mut Self::Output {
         &mut self.masks[index as usize]
+    }
+}
+
+/// Code that I'm not sure what it does, or why it's used.
+///
+/// 'bb' = Black Box.
+///
+/// The goal is to have no code here in the future.
+pub mod bb {
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    use super::*;
+
+
+    /// Code from:
+    /// https://youtu.be/nyk3usU95IY?list=PLmN0neTso3Jxh8ZIylk74JpwfiWNI76Cs&t=318
+    pub fn set_occupancy(idx: u64, bits_in_mask: u64, attack_mask: u64) -> u64 {
+        let mut attack_mask = attack_mask;
+        let mut occupancy = 0;
+
+        for iter in 0..bits_in_mask {
+            let square = get_first_set_bit(attack_mask)
+                .expect("could not find first set bit, this indicates an invalid attack mask");
+
+            clear_bit(&mut attack_mask, square);
+
+            if idx & (1 << iter) > 0 {
+                // set_bit(&mut occupancy, square);
+                occupancy |= 1 << square;
+            }
+        }
+
+        occupancy
+    }
+
+    /// Generates a pseudo random number.
+    ///
+    /// Code from:
+    /// https://youtu.be/JjFYmkUhLN4?list=PLmN0neTso3Jxh8ZIylk74JpwfiWNI76Cs&t=476
+    pub fn random_u32() -> u32 {
+        static STATE: AtomicU32 = AtomicU32::new(1082487311);
+
+        let mut local_state = STATE.load(Ordering::Relaxed);
+
+        local_state ^= local_state << 13;
+        local_state ^= local_state >> 17;
+        local_state ^= local_state << 5;
+
+        STATE.store(local_state, Ordering::Relaxed);
+
+        local_state
     }
 }
