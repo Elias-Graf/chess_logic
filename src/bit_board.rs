@@ -80,15 +80,6 @@ pub fn count_set_bits(board: u64) -> u64 {
     count
 }
 
-pub fn random_u64() -> u64 {
-    let n1 = bb::random_u32() as u64 & 0xFFFF;
-    let n2 = (bb::random_u32() as u64 & 0xFFFF) << 16;
-    let n3 = (bb::random_u32() as u64 & 0xFFFF) << 32;
-    let n4 = (bb::random_u32() as u64 & 0xFFFF) << 48;
-
-    n1 | n2 | n3 | n4
-}
-
 /// Returns the index of the first bit set to `1`.
 ///
 /// This is also known as the least significant set bit. If no bits are set,
@@ -208,7 +199,6 @@ pub mod bb {
 
     use super::*;
 
-
     /// Code from:
     /// https://youtu.be/nyk3usU95IY?list=PLmN0neTso3Jxh8ZIylk74JpwfiWNI76Cs&t=318
     pub fn set_occupancy(idx: u64, bits_in_mask: u64, attack_mask: u64) -> u64 {
@@ -216,35 +206,16 @@ pub mod bb {
         let mut occupancy = 0;
 
         for iter in 0..bits_in_mask {
-            let square = get_first_set_bit(attack_mask)
-                .expect("could not find first set bit, this indicates an invalid attack mask");
+            if let Some(square) = get_first_set_bit(attack_mask) {
+                clear_bit(&mut attack_mask, square);
 
-            clear_bit(&mut attack_mask, square);
-
-            if idx & (1 << iter) > 0 {
-                // set_bit(&mut occupancy, square);
-                occupancy |= 1 << square;
+                if idx & (1 << iter) > 0 {
+                    // set_bit(&mut occupancy, square);
+                    occupancy |= 1 << square;
+                }
             }
         }
 
         occupancy
-    }
-
-    /// Generates a pseudo random number.
-    ///
-    /// Code from:
-    /// https://youtu.be/JjFYmkUhLN4?list=PLmN0neTso3Jxh8ZIylk74JpwfiWNI76Cs&t=476
-    pub fn random_u32() -> u32 {
-        static STATE: AtomicU32 = AtomicU32::new(1082487311);
-
-        let mut local_state = STATE.load(Ordering::Relaxed);
-
-        local_state ^= local_state << 13;
-        local_state ^= local_state >> 17;
-        local_state ^= local_state << 5;
-
-        STATE.store(local_state, Ordering::Relaxed);
-
-        local_state
     }
 }

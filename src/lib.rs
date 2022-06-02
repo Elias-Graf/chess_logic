@@ -2,6 +2,7 @@ pub mod bit_board;
 pub mod board;
 pub mod display_board;
 pub mod fen;
+pub mod magic_bit_board;
 pub mod piece;
 pub mod square;
 

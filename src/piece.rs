@@ -60,8 +60,6 @@ const ROOK_RELEVANT_OCCUPANCY_BIT_COUNT: [u64; 64] = [
     12, 11, 11, 11, 11, 11, 11, 12,
 ];
 
-pub fn main() {}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Piece {
     Bishop,
@@ -73,7 +71,7 @@ pub enum Piece {
 }
 
 impl Piece {
-    fn get_bishop_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
+    pub fn get_bishop_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
         let i = pos.idx() as u64;
         let board = bit_board::with_bit_at(i);
 
@@ -374,7 +372,7 @@ impl Piece {
         moves
     }
 
-    fn get_rook_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
+    pub fn get_rook_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
         let i = pos.idx() as u64;
         let board = bit_board::with_bit_at(i);
 
@@ -729,73 +727,6 @@ fn generate_rook_move_mask() -> MoveMask {
     }
 
     mask
-}
-
-/// Code that I'm not sure what it does, or why it's used.
-///
-/// 'bb' = Black Box.
-///
-/// The goal is to have no code here in the future.
-mod bb {
-    use super::*;
-
-    pub fn find_magic_number(pos: &dyn BoardPos, relevant_bits: u64, piece: Piece) -> u64 {
-        let mut occupancies = [0u64; 4096];
-        let mut attacks = [0u64; 4096];
-        let mut used_attacks = [0u64; 4096];
-
-        let (attack_mask, get_attacks_for): (u64, fn(&dyn BoardPos, u64) -> u64) = match piece {
-            Piece::Bishop => (BISHOP_MOVE_MASK[pos], Piece::get_bishop_attacks_for),
-            Piece::Rook => (ROOK_MOVE_MASK[pos], Piece::get_rook_attacks_for),
-            _ => panic!(
-                "only bishops and rooks are valid arguments, found '{:?}'",
-                piece
-            ),
-        };
-
-        let occupancy_indices = 1 << relevant_bits;
-
-        for i in 0..occupancy_indices {
-            occupancies[i] = bit_board::bb::set_occupancy(i as u64, relevant_bits, attack_mask);
-            attacks[i] = get_attacks_for(pos, occupancies[i]);
-        }
-
-        for random_count in 0..10000000000000u64 {
-            let magic_number = generate_magic_number();
-
-            if bit_board::count_set_bits((attack_mask * magic_number) & 0xFF00000000000000) < 6 {
-                continue;
-            }
-
-            let mut index = 0;
-            let mut failed = false;
-
-            while !failed && index < occupancy_indices {
-                let magic_index =
-                    ((occupancies[index] * magic_number) >> (64 - relevant_bits)) as usize;
-
-                if used_attacks[magic_index] == 0 {
-                    used_attacks[magic_index] = attacks[index];
-                } else if used_attacks[magic_index] != attacks[index] {
-                    failed = true;
-                }
-
-                index += 1;
-            }
-
-            if !failed {
-                return magic_number;
-            }
-        }
-
-        println!("magic number failed!");
-
-        0
-    }
-
-    pub fn generate_magic_number() -> u64 {
-        bit_board::random_u64() & bit_board::random_u64() & bit_board::random_u64()
-    }
 }
 
 #[cfg(test)]
