@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 #[rustfmt::skip]
 #[derive(Debug, Clone, Copy)]
 pub enum Square {
@@ -11,7 +13,7 @@ pub enum Square {
     A1, B1, C1, D1, E1, F1, G1, H1,
 }
 
-pub trait BoardPos {
+pub trait BoardPos: Debug {
     fn idx(&self) -> i8;
 }
 

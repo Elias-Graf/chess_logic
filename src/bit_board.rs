@@ -2,6 +2,10 @@ use std::ops::{Index, IndexMut};
 
 use crate::{square::BoardPos, Board, Color};
 
+pub const SIZE: u64 = Board::SIZE as u64;
+pub const HEIGHT: u64 = Board::HEIGHT as u64;
+pub const WIDTH: u64 = Board::WIDTH as u64;
+
 /// # Usage
 /// ```ignore
 /// board >> NORTH
@@ -64,6 +68,14 @@ pub fn set_bit(board: &mut u64, i: u64) {
 
 pub fn clear_bit(board: &mut u64, i: u64) {
     *board &= !(1 << i)
+}
+
+/// Evaluates if the board has set bits - if it's truthy.
+/// 
+/// Would be the same as doing `if (board)` in languages that support general
+/// truthy/falsy value evaluation (for example C).
+pub fn has_set_bits(board: u64) -> bool {
+    board > 0
 }
 
 /// Calculates the number of bits set to `1`.
@@ -139,51 +151,55 @@ pub fn display(board: u64) -> String {
     val
 }
 
-pub struct MoveMask {
-    squares: [u64; 64],
-}
+pub struct U64PerSquare([u64; Board::SIZE]);
 
-impl MoveMask {
-    pub fn new() -> Self {
-        MoveMask { squares: [0; 64] }
+impl U64PerSquare {
+    pub const fn new() -> Self {
+        U64PerSquare([0; Board::SIZE])
     }
 }
 
-impl Index<&dyn BoardPos> for MoveMask {
+impl Index<&dyn BoardPos> for U64PerSquare {
     type Output = u64;
 
     fn index(&self, index: &dyn BoardPos) -> &Self::Output {
-        &self.squares[index.idx() as usize]
+        &self.0[index.idx() as usize]
     }
 }
 
-impl IndexMut<&dyn BoardPos> for MoveMask {
+impl IndexMut<&dyn BoardPos> for U64PerSquare {
     fn index_mut(&mut self, index: &dyn BoardPos) -> &mut Self::Output {
-        &mut self.squares[index.idx() as usize]
+        &mut self.0[index.idx() as usize]
     }
 }
 
-pub struct ColoredMovMask {
-    masks: [MoveMask; 2],
+impl From<[u64; Board::SIZE]> for U64PerSquare {
+    fn from(squares: [u64; Board::SIZE]) -> Self {
+        Self(squares)
+    }
 }
 
-impl ColoredMovMask {
+pub struct ColoredU64PerSquare {
+    masks: [U64PerSquare; 2],
+}
+
+impl ColoredU64PerSquare {
     pub fn new() -> Self {
-        ColoredMovMask {
-            masks: [MoveMask::new(), MoveMask::new()],
+        ColoredU64PerSquare {
+            masks: [U64PerSquare::new(), U64PerSquare::new()],
         }
     }
 }
 
-impl Index<Color> for ColoredMovMask {
-    type Output = MoveMask;
+impl Index<Color> for ColoredU64PerSquare {
+    type Output = U64PerSquare;
 
     fn index(&self, index: Color) -> &Self::Output {
         &self.masks[index as usize]
     }
 }
 
-impl IndexMut<Color> for ColoredMovMask {
+impl IndexMut<Color> for ColoredU64PerSquare {
     fn index_mut(&mut self, index: Color) -> &mut Self::Output {
         &mut self.masks[index as usize]
     }

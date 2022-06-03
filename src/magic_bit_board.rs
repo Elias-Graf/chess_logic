@@ -1,116 +1,82 @@
+use std::{ops::Mul, ptr::read_volatile};
+
 use once_cell::sync::Lazy;
 
 use crate::{
-    bit_board::{self, MoveMask},
-    square::BoardPos,
+    bit_board::{self, U64PerSquare},
+    piece,
+    square::{BoardPos, Square},
     Board, Piece,
 };
 
-const SIZE: u64 = Board::SIZE as u64;
-const HEIGHT: u64 = Board::HEIGHT as u64;
-const WIDTH: u64 = Board::WIDTH as u64;
+pub static BISHOP_MAGIC_NUMBERS: Lazy<U64PerSquare> = Lazy::new(|| {
+    let mut numbers = U64PerSquare::new();
 
-const BISHOP_RELEVANT_MOVE_MASK: Lazy<MoveMask> = Lazy::new(generate_bishop_relevant_move_mask);
-const ROOK_RELEVANT_MOVE_MASK: Lazy<MoveMask> = Lazy::new(generate_rook_relevant_move_mask);
+    for i in 0..Board::SIZE {
+        numbers[&i] = find_magic_number(
+            &i,
+            piece::BISHOP_RELEVANT_OCCUPANCY_BIT_COUNT[i as usize],
+            Piece::Bishop,
+        )
+    }
 
-/// Generates a move mask with only the relevant squares.
+    numbers
+});
+
+/// Calculates the number that can be used to index the attacks table.
 ///
-/// Essentially this is excluding the very edge of the board, since it would not
-/// matter if it's a blocker or not.
-fn generate_bishop_relevant_move_mask() -> MoveMask {
-    let mut mask = MoveMask::new();
-
-    for i in 0..SIZE {
-        let mut board = bit_board::with_bit_at(i);
-
-        let file = i % HEIGHT;
-        let rank = i / HEIGHT;
-
-        let to_no_ea = u64::min((WIDTH - 1) - file, rank);
-        let to_so_ea = u64::min(WIDTH - file, HEIGHT - rank) - 1;
-        let to_so_we = u64::min(file, (HEIGHT - 1) - rank);
-        let to_no_we = u64::min(file, rank);
-
-        for iter in 1..to_no_ea {
-            mask[&i] |= board >> bit_board::NO_EA * iter;
-        }
-        for iter in 1..to_so_ea {
-            mask[&i] |= board << bit_board::SO_EA * iter;
-        }
-        for iter in 1..to_so_we {
-            mask[&i] |= board << bit_board::SO_WE * iter;
-        }
-        for iter in 1..to_no_we {
-            mask[&i] |= board >> bit_board::NO_WE * iter;
-        }
-    }
-
-    mask
-}
-
-/// Same as [generate_bishop_relevant_move_mask], but for rooks.
-fn generate_rook_relevant_move_mask() -> MoveMask {
-    let mut mask = MoveMask::new();
-
-    for i in 0..SIZE {
-        let mut board = bit_board::with_bit_at(i);
-
-        let file = i % HEIGHT;
-        let rank = i / HEIGHT;
-
-        let to_north = rank;
-        let to_east = (WIDTH - file) - 1;
-        let to_south = (HEIGHT - rank) - 1;
-        let to_west = file;
-
-        for iter in 1..to_north {
-            mask[&i] |= board >> bit_board::NORTH * iter;
-        }
-        for iter in 1..to_east {
-            mask[&i] |= board << bit_board::EAST * iter;
-        }
-        for iter in 1..to_south {
-            mask[&i] |= board << bit_board::SOUTH * iter;
-        }
-        for iter in 1..to_west {
-            mask[&i] |= board >> bit_board::WEST * iter;
-        }
-    }
-
-    mask
+/// * `magic_number` - "magic" (**generated** random) number, used to differentiate similar
+///    `occupancies`, see [`find_magic_number`] to checkout the generation.
+/// * `occupancies` - what squares are occupied
+/// * `number_of_occupied_sports` - used to further differentiate indexes
+pub fn calculate_magic_index(
+    magic_number: u64,
+    occupancies: u64,
+    number_of_relevant_bits: u64,
+) -> usize {
+    // magic_number
+    //     .wrapping_mul(magic_number)
+    //     .wrapping_mul(occupancies) as usize
+    //     >> 65 - number_of_relevant_bits
+    occupancies.wrapping_mul(magic_number) as usize >> 64 - number_of_relevant_bits
 }
 
 fn find_magic_number(pos: &dyn BoardPos, relevant_bits: u64, piece: Piece) -> u64 {
+    let is_da_thing = pos.idx() == Square::D4.idx()
+        && relevant_bits == piece::BISHOP_RELEVANT_OCCUPANCY_BIT_COUNT[Square::D4.idx() as usize];
+
     let mut occupancies = [0u64; 4096];
     let mut attacks = [0u64; 4096];
     let mut used_attacks;
 
     let (attack_mask, get_attacks_for): (u64, fn(&dyn BoardPos, u64) -> u64) = match piece {
         Piece::Bishop => (
-            BISHOP_RELEVANT_MOVE_MASK[pos],
-            Piece::get_bishop_attacks_for,
+            piece::BISHOP_RELEVANT_MOVE_MASK[pos],
+            piece::calculate_bishop_attacks_for,
         ),
-        Piece::Rook => (ROOK_RELEVANT_MOVE_MASK[pos], Piece::get_rook_attacks_for),
+        Piece::Rook => (
+            piece::ROOK_RELEVANT_MOVE_MASK[pos],
+            Piece::get_rook_attacks_for,
+        ),
         _ => panic!(
             "only bishops and rooks are valid arguments, found '{:?}'",
             piece
         ),
     };
 
-    let occupancy_indices = 1 << bit_board::count_set_bits(relevant_bits);
+    let occupancy_indices = (1 << relevant_bits) as usize;
 
     for i in 0..occupancy_indices {
-        occupancies[i] =
-            bit_board::bb::set_occupancy(i as u64, occupancy_indices as u64, attack_mask);
-
+        occupancies[i] = bit_board::bb::set_occupancy(i as u64, relevant_bits, attack_mask);
         attacks[i] = get_attacks_for(pos, occupancies[i]);
     }
 
-    for _ in 0..10000000000000u64 {
+    for x in 0..10000000000000u64 {
         let magic_number = generate_magic_number();
 
-        if bit_board::count_set_bits((attack_mask.wrapping_mul(magic_number)) & 0xFF00000000000000)
-            < 6
+        if bit_board::count_set_bits(
+            (attack_mask.overflowing_mul(magic_number).0) & 0xFF00000000000000,
+        ) < 6
         {
             continue;
         }
@@ -121,12 +87,37 @@ fn find_magic_number(pos: &dyn BoardPos, relevant_bits: u64, piece: Piece) -> u6
         let mut failed = false;
 
         while !failed && index < occupancy_indices {
+            if failed {
+                dbg!(failed);
+            }
+            // let magic_index =
+            //     (occupancies[index].overflowing_mul(magic_number).0 >> 64 - relevant_bits) as usize;
+            // let magic_index =
+            //     occupancies[index].wrapping_mul(magic_number) as usize >> 64 - relevant_bits;
             let magic_index =
-                (occupancies[index].wrapping_mul(magic_number) >> 64 - relevant_bits) as usize;
+                calculate_magic_index(magic_number, occupancies[index], relevant_bits);
+
+            if pos.idx() == Square::F6.idx() && magic_index == 0 {
+                // dbg!(
+                //     occupancies[index].wrapping_mul(magic_number),
+                //     64 - relevant_bits,
+                //     occupancies[index].wrapping_mul(magic_number) >> 64 - relevant_bits,
+                //     used_attacks[magic_index] != attacks[index],
+                // );
+                // println!(
+                //     "--------------------\nmagic index: {}\nmagic number: {}\noccupancies:\n{}",
+                //     magic_index,
+                //     magic_number,
+                //     bit_board::display(occupancies[index]),
+                // );
+                // println!("attacks\n{}", bit_board::display(attacks[index]));
+            }
 
             if used_attacks[magic_index] == 0 {
                 used_attacks[magic_index] = attacks[index];
             } else if used_attacks[magic_index] != attacks[index] {
+                // I think this condition means that two magic indexes resulted
+                // in different attacks which should not happen.
                 failed = true;
             }
 
@@ -170,7 +161,7 @@ mod bb {
     /// Code from:
     /// https://youtu.be/JjFYmkUhLN4?list=PLmN0neTso3Jxh8ZIylk74JpwfiWNI76Cs&t=476
     pub fn random_u32() -> u32 {
-        static STATE: AtomicU32 = AtomicU32::new(108248);
+        static STATE: AtomicU32 = AtomicU32::new(1082485);
 
         let mut local_state = STATE.load(Ordering::Relaxed);
 
