@@ -3,10 +3,9 @@ use std::ops::Range;
 use once_cell::sync::Lazy;
 
 use crate::{
-    bit_board::{self, display, ColoredU64PerSquare, U64PerSquare, HEIGHT},
+    bit_board::{self, _ColoredU64PerSquare, _U64PerSquare, display, HEIGHT},
     board::MoveByIdx,
     magic_bit_board,
-    piece::bb::generate_bishop_attacks,
     square::{BoardPos, Square},
     Board, Color,
 };
@@ -33,29 +32,15 @@ const NOT_FILE_AB: u64 = 18229723555195321596;
 const NOT_FILE_GH: u64 = 4557430888798830399;
 const NOT_FILE_H: u64 = 9187201950435737471;
 
-pub const BISHOP_RELEVANT_MOVE_MASK: Lazy<U64PerSquare> =
-    Lazy::new(generate_bishop_relevant_move_mask);
-pub const ROOK_RELEVANT_MOVE_MASK: Lazy<U64PerSquare> = Lazy::new(generate_rook_relevant_move_mask);
+pub const ROOK_RELEVANT_MOVE_MASK: Lazy<_U64PerSquare> =
+    Lazy::new(generate_rook_relevant_move_mask);
 
-const KING_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_king_attacks);
-const KNIGHT_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_knight_attacks);
-const PAWN_ATTACKS: Lazy<ColoredU64PerSquare> = Lazy::new(generate_pawn_attacks);
+const KING_ATTACKS: Lazy<_U64PerSquare> = Lazy::new(generate_king_attacks);
+const KNIGHT_ATTACKS: Lazy<_U64PerSquare> = Lazy::new(generate_knight_attacks);
+const PAWN_ATTACKS: Lazy<_ColoredU64PerSquare> = Lazy::new(generate_pawn_attacks);
 
 // const BISHOP_ATTACKS_BY_OCCUPANCY: Lazy<_> = Lazy::new(generate_bishop_attacks)
 
-/// Count of the (relevant, see [generate_bishop_relevant_move_mask]) set bits for
-/// bishops on each position.
-#[rustfmt::skip]
-pub const BISHOP_RELEVANT_OCCUPANCY_BIT_COUNT: [u64; 64] = [
-    6, 5, 5, 5, 5, 5, 5, 6,
-    5, 5, 5, 5, 5, 5, 5, 5,
-    5, 5, 7, 7, 7, 7, 5, 5,
-    5, 5, 7, 9, 9, 7, 5, 5,
-    5, 5, 7, 9, 9, 7, 5, 5,
-    5, 5, 7, 7, 7, 7, 5, 5,
-    5, 5, 5, 5, 5, 5, 5, 5,
-    6, 5, 5, 5, 5, 5, 5, 6,
-];
 /// Same as [BISHOP_RELEVANT_OCCUPANCY_BIT_COUNT] but for rooks.
 #[rustfmt::skip]
 pub const ROOK_RELEVANT_OCCUPANCY_BIT_COUNT: [u64; 64] = [
@@ -691,148 +676,9 @@ const fn generate_to_edge_map() -> ToEdgeOffset {
     map
 }
 
-pub fn main() {
-    let pos = &Square::F6;
-
-    // println!(
-    //     "{}",
-    //     bit_board::display(Piece::get_bishop_attacks_for(pos, 0))
-    // );
-    // println!("{}", magic_bit_board::BISHOP_MAGIC_NUMBERS[pos]);
-
-    let mut occupancy = 0;
-    bit_board::set_bit(&mut occupancy, Square::E7.into());
-    bit_board::set_bit(&mut occupancy, Square::D4.into());
-    bit_board::set_bit(&mut occupancy, Square::G5.into());
-
-    println!("{}", display(occupancy));
-
-    // for i in 0..Board::SIZE {
-    //     println!("0x{:x}", magic_bit_board::BISHOP_MAGIC_NUMBERS[&i]);
-    // }
-
-    // 585457750152
-
-    println!(
-        "result:\n{}",
-        display(get_bishop_attacks_for(pos, occupancy))
-    );
-}
-
-pub fn get_bishop_attacks_for(pos: &dyn BoardPos, occupancy: u64) -> u64 {
-    bb::get_bishop_attacks_for(pos, occupancy)
-}
-
-/// Code that I'm not sure what it does, or why it's used.
-///
-/// 'bb' = Black Box.
-///
-/// The goal is to have no code here in the future.
-mod bb {
-    use super::*;
-
-    pub static BISHOP_ATTACKS: Lazy<Box<[[u64; 512]; 64]>> =
-        Lazy::new(|| Box::new(generate_bishop_attacks()));
-
-    pub fn get_bishop_attacks_for(pos: &dyn BoardPos, occupancy: u64) -> u64 {
-        // occupancy &= BISHOP_RELEVANT_MOVE_MASK[pos];
-        // occupancy = occupancy.wrapping_mul(magic_bit_board::BISHOP_MAGIC_NUMBERS[pos]);
-        // occupancy >>= bit_board::SIZE - BISHOP_RELEVANT_OCCUPANCY_BIT_COUNT[pos.idx() as usize];
-        let magic_index = magic_bit_board::calculate_magic_index(
-            magic_bit_board::BISHOP_MAGIC_NUMBERS[pos],
-            occupancy,
-            BISHOP_RELEVANT_OCCUPANCY_BIT_COUNT[pos.idx() as usize],
-        );
-
-        // println!("{}", bit_board::display(BISHOP_ATTACKS[pos.idx() as usize][0]));
-        // println!("{}", bit_board::display(BISHOP_ATTACKS[pos.idx() as usize][1]));
-
-        BISHOP_ATTACKS[pos.idx() as usize][magic_index]
-    }
-
-    pub fn generate_bishop_attacks() -> [[u64; 512]; 64] {
-        let mut bishop_attacks = [[0; 512]; 64];
-
-        for i in 0..Board::SIZE {
-            let mask = BISHOP_RELEVANT_MOVE_MASK[&i];
-            let set_bits_count = BISHOP_RELEVANT_OCCUPANCY_BIT_COUNT[i];
-
-            let occupancy_indices = 1 << set_bits_count;
-
-            for occupancy_index in 0..occupancy_indices {
-                let occupancies =
-                    bit_board::bb::set_occupancy(occupancy_index, set_bits_count, mask);
-
-                let magic_index = magic_bit_board::calculate_magic_index(
-                    magic_bit_board::BISHOP_MAGIC_NUMBERS[&i],
-                    occupancies,
-                    set_bits_count,
-                );
-                // let magic_index = (occupancy
-                //     .wrapping_mul(magic_bit_board::BISHOP_MAGIC_NUMBERS[&i])
-                //     >> bit_board::SIZE - set_bits_count) as usize;
-
-                // if i == Square::F6.idx() as usize && magic_index == 0 {
-                //     dbg!(
-                //         occupancies.wrapping_mul(magic_bit_board::BISHOP_MAGIC_NUMBERS[&i]),
-                //         64 - set_bits_count,
-                //         occupancies.wrapping_mul(magic_bit_board::BISHOP_MAGIC_NUMBERS[&i])
-                //             >> 64 - set_bits_count,
-                //     );
-                //     println!(
-                //         "--------------------\nmagic index: {}\nmagic number: {}\noccupancies:\n{}",
-                //         magic_index,
-                //         magic_bit_board::BISHOP_MAGIC_NUMBERS[&i],
-                //         bit_board::display(occupancies),
-                //     );
-                // }
-
-                bishop_attacks[i][magic_index] = calculate_bishop_attacks_for(&i, occupancies);
-            }
-        }
-
-        bishop_attacks
-    }
-}
-
-/// Generates a move mask with only the relevant squares.
-///
-/// Essentially this is excluding the very edge of the board, since it would not
-/// matter if it's a blocker or not.
-fn generate_bishop_relevant_move_mask() -> U64PerSquare {
-    let mut mask = U64PerSquare::new();
-
-    for i in 0..bit_board::SIZE {
-        let mut board = bit_board::with_bit_at(i);
-
-        let file = i % bit_board::HEIGHT;
-        let rank = i / bit_board::HEIGHT;
-
-        let to_no_ea = u64::min((bit_board::WIDTH - 1) - file, rank);
-        let to_so_ea = u64::min(bit_board::WIDTH - file, bit_board::HEIGHT - rank) - 1;
-        let to_so_we = u64::min(file, (bit_board::HEIGHT - 1) - rank);
-        let to_no_we = u64::min(file, rank);
-
-        for iter in 1..to_no_ea {
-            mask[&i] |= board >> bit_board::NO_EA * iter;
-        }
-        for iter in 1..to_so_ea {
-            mask[&i] |= board << bit_board::SO_EA * iter;
-        }
-        for iter in 1..to_so_we {
-            mask[&i] |= board << bit_board::SO_WE * iter;
-        }
-        for iter in 1..to_no_we {
-            mask[&i] |= board >> bit_board::NO_WE * iter;
-        }
-    }
-
-    mask
-}
-
 /// Same as [generate_bishop_relevant_move_mask], but for rooks.
-fn generate_rook_relevant_move_mask() -> U64PerSquare {
-    let mut mask = U64PerSquare::new();
+fn generate_rook_relevant_move_mask() -> _U64PerSquare {
+    let mut mask = _U64PerSquare::new();
 
     for i in 0..bit_board::SIZE {
         let mut board = bit_board::with_bit_at(i);
@@ -862,8 +708,8 @@ fn generate_rook_relevant_move_mask() -> U64PerSquare {
     mask
 }
 
-fn generate_king_attacks() -> U64PerSquare {
-    let mut mask = U64PerSquare::new();
+fn generate_king_attacks() -> _U64PerSquare {
+    let mut mask = _U64PerSquare::new();
 
     for i in 0..Board::SIZE as u64 {
         let mut board = 0;
@@ -886,8 +732,8 @@ fn generate_king_attacks() -> U64PerSquare {
     mask
 }
 
-fn generate_knight_attacks() -> U64PerSquare {
-    let mut mask = U64PerSquare::new();
+fn generate_knight_attacks() -> _U64PerSquare {
+    let mut mask = _U64PerSquare::new();
 
     for i in 0..Board::SIZE as u64 {
         let mut board = 0;
@@ -918,8 +764,8 @@ fn generate_knight_attacks() -> U64PerSquare {
     mask
 }
 
-fn generate_pawn_attacks() -> ColoredU64PerSquare {
-    let mut mask = ColoredU64PerSquare::new();
+fn generate_pawn_attacks() -> _ColoredU64PerSquare {
+    let mut mask = _ColoredU64PerSquare::new();
 
     for i in 0..Board::SIZE as u64 {
         let mut board = 0;

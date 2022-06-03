@@ -2,6 +2,14 @@ use std::ops::{Index, IndexMut};
 
 use crate::{square::BoardPos, Board, Color};
 
+/// Custom default trait.
+/// 
+/// Same functionality as the [`Default`] trait, but defined in this create. That
+/// way it can be used on type aliases.
+pub trait CustomDefault {
+    fn default() -> Self;
+}
+
 pub const SIZE: u64 = Board::SIZE as u64;
 pub const HEIGHT: u64 = Board::HEIGHT as u64;
 pub const WIDTH: u64 = Board::WIDTH as u64;
@@ -71,7 +79,7 @@ pub fn clear_bit(board: &mut u64, i: u64) {
 }
 
 /// Evaluates if the board has set bits - if it's truthy.
-/// 
+///
 /// Would be the same as doing `if (board)` in languages that support general
 /// truthy/falsy value evaluation (for example C).
 pub fn has_set_bits(board: u64) -> bool {
@@ -151,11 +159,11 @@ pub fn display(board: u64) -> String {
     val
 }
 
-pub struct U64PerSquare([u64; Board::SIZE]);
+pub type U64PerSquare = [u64; Board::SIZE];
 
-impl U64PerSquare {
-    pub const fn new() -> Self {
-        U64PerSquare([0; Board::SIZE])
+impl CustomDefault for U64PerSquare {
+    fn default() -> Self {
+        [0; Board::SIZE]
     }
 }
 
@@ -163,43 +171,67 @@ impl Index<&dyn BoardPos> for U64PerSquare {
     type Output = u64;
 
     fn index(&self, index: &dyn BoardPos) -> &Self::Output {
-        &self.0[index.idx() as usize]
+        &self[index.idx() as usize]
     }
 }
 
 impl IndexMut<&dyn BoardPos> for U64PerSquare {
     fn index_mut(&mut self, index: &dyn BoardPos) -> &mut Self::Output {
+        &mut self[index.idx() as usize]
+    }
+}
+
+// TODO: remove
+pub struct _U64PerSquare([u64; Board::SIZE]);
+
+impl _U64PerSquare {
+    pub const fn new() -> Self {
+        _U64PerSquare([0; Board::SIZE])
+    }
+}
+
+impl Index<&dyn BoardPos> for _U64PerSquare {
+    type Output = u64;
+
+    fn index(&self, index: &dyn BoardPos) -> &Self::Output {
+        &self.0[index.idx() as usize]
+    }
+}
+
+impl IndexMut<&dyn BoardPos> for _U64PerSquare {
+    fn index_mut(&mut self, index: &dyn BoardPos) -> &mut Self::Output {
         &mut self.0[index.idx() as usize]
     }
 }
 
-impl From<[u64; Board::SIZE]> for U64PerSquare {
+impl From<[u64; Board::SIZE]> for _U64PerSquare {
     fn from(squares: [u64; Board::SIZE]) -> Self {
         Self(squares)
     }
 }
 
-pub struct ColoredU64PerSquare {
-    masks: [U64PerSquare; 2],
+// TODO: remove
+pub struct _ColoredU64PerSquare {
+    masks: [_U64PerSquare; 2],
 }
 
-impl ColoredU64PerSquare {
+impl _ColoredU64PerSquare {
     pub fn new() -> Self {
-        ColoredU64PerSquare {
-            masks: [U64PerSquare::new(), U64PerSquare::new()],
+        _ColoredU64PerSquare {
+            masks: [_U64PerSquare::new(), _U64PerSquare::new()],
         }
     }
 }
 
-impl Index<Color> for ColoredU64PerSquare {
-    type Output = U64PerSquare;
+impl Index<Color> for _ColoredU64PerSquare {
+    type Output = _U64PerSquare;
 
     fn index(&self, index: Color) -> &Self::Output {
         &self.masks[index as usize]
     }
 }
 
-impl IndexMut<Color> for ColoredU64PerSquare {
+impl IndexMut<Color> for _ColoredU64PerSquare {
     fn index_mut(&mut self, index: Color) -> &mut Self::Output {
         &mut self.masks[index as usize]
     }
