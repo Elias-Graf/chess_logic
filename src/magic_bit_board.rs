@@ -2,13 +2,13 @@
 //!
 //! Sliding pieces have to "stop dead in their tracks" when hitting another piece,
 //! discarding all moves that could have followed. Therefore, **lookup tables**
-//! are generated for each square, for each variant of pieces (also called occupancies)
-//! that could block the progressing of sliding moves.
+//! are generated for each square, for each variant of pieces that could block the
+//! progressing of sliding moves (also called occupancies).
 //!
 //! **These tables are index by so called "magic numbers".** There is nothing special
 //! or magic about them. They are just a random number that were found to lead to
-//! the correct set of moves when processed by certain mathematical operation. So
-//! if you read anything related to "magic number" or "magic index" in this module,
+//! the correct set of moves when processed by certain mathematical operations.
+//! So if you read anything related to "magic number" or "magic index" in this module,
 //! simply think "randomly generated number" that can be used to generate an index
 //! in the move lookup table.
 
@@ -222,7 +222,7 @@ const ROOK_MAGIC_NUMBERS: U64PerSquare = [
     0x6042084104102,
 ];
 
-pub static RELEVANT_BISHOP_MOVES_PER_SQUARE: Lazy<U64PerSquare> =
+static RELEVANT_BISHOP_MOVES_PER_SQUARE: Lazy<U64PerSquare> =
     Lazy::new(generate_relevant_bishop_moves_per_square);
 static RELEVANT_ROOK_MOVES_PER_SQUARE: Lazy<U64PerSquare> =
     Lazy::new(generate_relevant_rook_moves_per_square);

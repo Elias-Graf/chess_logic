@@ -5,6 +5,7 @@ use once_cell::sync::Lazy;
 use crate::{
     bit_board::{self, ColoredU64PerSquare, CustomDefault, U64PerSquare},
     board::MoveByIdx,
+    magic_bit_board,
     square::{BoardPos, Square},
     Board, Color,
 };
@@ -37,6 +38,76 @@ pub static ROOK_RELEVANT_MOVE_MASK: Lazy<U64PerSquare> =
 static KING_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_king_attacks);
 static KNIGHT_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_knight_attacks);
 static PAWN_ATTACKS: Lazy<ColoredU64PerSquare> = Lazy::new(generate_pawn_attacks);
+
+pub fn get_bishop_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
+    magic_bit_board::get_bishop_attacks_for(pos, blockers)
+}
+
+pub fn get_queen_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
+    magic_bit_board::get_bishop_attacks_for(pos, blockers)
+        | magic_bit_board::get_rook_attacks_for(pos, blockers)
+}
+
+pub fn get_rook_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
+    magic_bit_board::get_rook_attacks_for(pos, blockers)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::testing_utils::assert_bit_boards_eq;
+
+    #[test]
+    fn bishop_attacks_north_west_corner_without_blockers() {
+        assert_bit_boards_eq(get_bishop_attacks_for(&Square::B7, 0), 9241421688590368773);
+    }
+
+    #[test]
+    fn bishop_attacks_south_east_corner_with_blockers() {
+        let mut blockers = 0;
+        bit_board::set_bit(&mut blockers, Square::E4.into());
+
+        assert_bit_boards_eq(
+            get_bishop_attacks_for(&Square::G2, blockers),
+            11529391036648390656,
+        );
+    }
+
+    #[test]
+    fn queen_attacks_north_west_corner_without_blockers() {
+        assert_bit_boards_eq(get_queen_attacks_for(&Square::B7, 0), 9386102034266586375);
+    }
+
+    #[test]
+    fn queen_attacks_south_east_corner_with_blockers() {
+        let mut blockers = 0;
+        bit_board::set_bit(&mut blockers, Square::F3.into());
+        bit_board::set_bit(&mut blockers, Square::G7.into());
+
+        assert_bit_boards_eq(
+            get_queen_attacks_for(&Square::G2, blockers),
+            16194909351608074240,
+        );
+    }
+
+    
+    #[test]
+    fn rook_attacks_north_west_corner_without_blockers() {
+        assert_bit_boards_eq(get_rook_attacks_for(&Square::B7, 0), 144680345676217602);
+    }
+
+    #[test]
+    fn rook_attacks_south_east_corner_with_blockers() {
+        let mut blockers = 0;
+        bit_board::set_bit(&mut blockers, Square::G4.into());
+
+        assert_bit_boards_eq(
+            get_rook_attacks_for(&Square::G2, blockers),
+            4665518382601207808,
+        );
+    }
+}
 
 pub use new::*;
 mod new {
@@ -115,6 +186,8 @@ mod new {
 
     #[cfg(test)]
     mod test {
+        use crate::testing_utils::assert_bit_boards_eq;
+
         use super::*;
 
         #[test]
@@ -198,16 +271,6 @@ mod new {
             assert_bit_boards_eq(
                 calculate_rook_attacks_for(&Square::E4, blockers),
                 1157443723186929664,
-            );
-        }
-
-        fn assert_bit_boards_eq(left: u64, right: u64) {
-            assert_eq!(
-                left,
-                right,
-                "expected:\n{}\nto equal:\n{}",
-                bit_board::display(left),
-                bit_board::display(right)
             );
         }
     }
@@ -611,6 +674,9 @@ impl Piece {
         }
     }
 
+    // TODO: refactor to return the unicode versions:
+    // https://en.wikipedia.org/wiki/Chess_symbols_in_Unicode
+    // TODO: make black lower case and white upper case, removing the need to use ansi colors.
     pub const fn get_symbol(&self) -> &'static str {
         match self {
             Self::Bishop => "BI",
@@ -854,7 +920,7 @@ fn generate_pawn_attacks() -> ColoredU64PerSquare {
 }
 
 #[cfg(test)]
-mod tests {
+mod tests_old {
     use crate::{board::PieceInstance, display_board, square::BoardPos, Color};
 
     use super::*;

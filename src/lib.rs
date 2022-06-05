@@ -6,6 +6,9 @@ pub mod magic_bit_board;
 pub mod piece;
 pub mod square;
 
+#[cfg(test)]
+mod testing_utils;
+
 pub use board::Board;
 pub use piece::Piece;
 
