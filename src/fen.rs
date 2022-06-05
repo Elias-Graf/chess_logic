@@ -11,9 +11,6 @@ pub trait Fen: Sized {
 impl Fen for PieceInstance {
     fn get_fen(&self) -> String {
         match (&self.color, &self.piece) {
-            // TODO: It is currently assumed that you are white.
-            // This should be changed as soon as color information is stored with
-            // the piece.
             (Color::White, Piece::Bishop) => "B",
             (Color::White, Piece::King) => "K",
             (Color::White, Piece::Knight) => "N",
@@ -32,9 +29,6 @@ impl Fen for PieceInstance {
 
     fn from_fen(fen: &str) -> Result<PieceInstance, String> {
         Ok(match fen {
-            // TODO: It is currently assumed that you are white.
-            // This should be changed as soon as color information is stored with
-            // the piece.
             "B" => PieceInstance::new(Color::White, Piece::Bishop),
             "K" => PieceInstance::new(Color::White, Piece::King),
             "N" => PieceInstance::new(Color::White, Piece::Knight),
@@ -73,12 +67,15 @@ impl Fen for Board {
             let is_end_of_rank = idx % Self::HEIGHT == Self::WIDTH - 1;
             let last_separator = idx == Board::SIZE - 1;
 
-            if is_end_of_rank && !last_separator {
+            if is_end_of_rank {
                 if empty_count > 0 {
                     fen.push_str(&empty_count.to_string());
                     empty_count = 0;
                 }
-                fen.push('/');
+
+                if !last_separator {
+                    fen.push('/');
+                }
             }
         }
 
@@ -104,7 +101,7 @@ impl Fen for Board {
 
             let ins: PieceInstance = Fen::from_fen(&c.to_string())?;
 
-            board.set_by_idx(idx, Some(ins));
+            board.set(&idx, ins.color, ins.piece);
             idx += 1;
         }
 
@@ -112,97 +109,42 @@ impl Fen for Board {
     }
 }
 
-// pub fn fen(&self) -> String {
-//     let mut fen = String::new();
-//     let mut empty_count = 0;
+#[cfg(test)]
+mod tests {
+    use crate::{bit_board, square::Square};
 
-//     for idx in 0..Board::SIZE {
-//         match self.get(idx) {
-//             Some(ins) => {
-//                 if empty_count > 0 {
-//                     fen.push_str(&empty_count.to_string());
-//                     empty_count = 0;
-//                 }
+    use super::*;
 
-//                 let mut piece_symbol = match ins.piece {
-//                     Piece::Bishop => "b",
-//                     Piece::King => "k",
-//                     Piece::Knight => "n",
-//                     Piece::Pawn => "p",
-//                     Piece::Queen => "q",
-//                     Piece::Rook => "r",
-//                 }
-//                 .to_owned();
+    #[test]
+    fn starting_formation() {
+        let board = Board::new_with_standard_formation();
 
-//                 if self.get_color_of_player(&ins.player) == &Color::White {
-//                     piece_symbol = piece_symbol.to_uppercase();
-//                 }
+        assert_eq!(
+            board.get_fen(),
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+        );
+    }
 
-//                 fen.push_str(&piece_symbol);
-//             }
-//             None => {
-//                 empty_count += 1;
-//             }
-//         };
+    #[test]
+    fn not_starting_formation() {
+        let mut board = Board::new_empty();
+        board.set(&Square::D8, Color::White, Piece::Bishop);
+        board.set(&Square::A7, Color::Black, Piece::King);
+        board.set(&Square::H7, Color::White, Piece::Pawn);
+        board.set(&Square::E6, Color::White, Piece::Knight);
+        board.set(&Square::G6, Color::Black, Piece::Pawn);
+        board.set(&Square::A5, Color::White, Piece::King);
+        board.set(&Square::B4, Color::White, Piece::Pawn);
+        board.set(&Square::F4, Color::White, Piece::Pawn);
+        board.set(&Square::G4, Color::White, Piece::Bishop);
+        board.set(&Square::H4, Color::Black, Piece::Pawn);
+        board.set(&Square::F3, Color::White, Piece::Pawn);
+        board.set(&Square::H3, Color::Black, Piece::Rook);
+        board.set(&Square::A2, Color::White, Piece::Rook);
+        board.set(&Square::E2, Color::White, Piece::Pawn);
+        board.set(&Square::G2, Color::White, Piece::Pawn);
+        board.set(&Square::H2, Color::Black, Piece::Pawn);
 
-//         let is_end_of_rank = idx % Self::HEIGHT == Self::WIDTH - 1;
-//         let last_separator = idx == Board::SIZE - 1;
-
-//         if is_end_of_rank && !last_separator {
-//             if empty_count > 0 {
-//                 fen.push_str(&empty_count.to_string());
-//                 empty_count = 0;
-//             }
-//             fen.push('/');
-//         }
-//     }
-
-//     fen
-// }
-
-// pub fn from_fen(fen: &str) -> Result<Board, String> {
-//     let fen = fen.split(' ').collect::<Vec<_>>()[0];
-//     let mut board = Board::new(Color::White, Color::Black);
-//     let mut idx: usize = 0;
-
-//     for c in fen.chars() {
-//         if c == '/' {
-//             continue;
-//         }
-
-//         if let Some(empty_squares) = c.to_digit(10) {
-//             idx += empty_squares as usize;
-
-//             continue;
-//         }
-
-//          let mut ins = match c {
-//             'b' => PieceInstance::new(Player::Opponent, Piece::Bishop),
-//             'k' => PieceInstance::new(Player::Opponent, Piece::King),
-//             'n' => PieceInstance::new(Player::Opponent, Piece::Knight),
-//             'p' => PieceInstance::new(Player::Opponent, Piece::Pawn),
-//             'q' => PieceInstance::new(Player::Opponent, Piece::Queen),
-//             'r' => PieceInstance::new(Player::Opponent, Piece::Rook),
-//             'B' => PieceInstance::new(Player::You, Piece::Bishop),
-//             'K' => PieceInstance::new(Player::You, Piece::King),
-//             'N' => PieceInstance::new(Player::You, Piece::Knight),
-//             'P' => PieceInstance::new(Player::You, Piece::Pawn),
-//             'Q' => PieceInstance::new(Player::You, Piece::Queen),
-//             'R' => PieceInstance::new(Player::You, Piece::Rook),
-//             c => return Err(format!("unknown fen symbol '{}'", c)),
-//         };
-
-//         if ins.piece == Piece::Pawn {
-//             if board.get_color_of_player(&ins.player) == &Color::White {
-//                 ins.was_moved = !(idx > 47 && idx < 56);
-//             } else {
-//                 ins.was_moved = !(idx > 7 && idx < 16);
-//             }
-//         }
-
-//         board.set(idx, Some(ins));
-//         idx += 1;
-//     }
-
-//     Ok(board)
-// }
+        assert_eq!(board.get_fen(), "3B4/k6P/4N1p1/K7/1P3PBp/5P1r/R3P1Pp/8");
+    }
+}
