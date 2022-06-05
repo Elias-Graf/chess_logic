@@ -3,9 +3,8 @@ use std::ops::Range;
 use once_cell::sync::Lazy;
 
 use crate::{
-    bit_board::{self, _ColoredU64PerSquare, _U64PerSquare, display, HEIGHT},
+    bit_board::{self, _ColoredU64PerSquare, _U64PerSquare},
     board::MoveByIdx,
-    magic_bit_board,
     square::{BoardPos, Square},
     Board, Color,
 };
@@ -39,47 +38,67 @@ const KING_ATTACKS: Lazy<_U64PerSquare> = Lazy::new(generate_king_attacks);
 const KNIGHT_ATTACKS: Lazy<_U64PerSquare> = Lazy::new(generate_knight_attacks);
 const PAWN_ATTACKS: Lazy<_ColoredU64PerSquare> = Lazy::new(generate_pawn_attacks);
 
-// const BISHOP_ATTACKS_BY_OCCUPANCY: Lazy<_> = Lazy::new(generate_bishop_attacks)
-
-/// Same as [BISHOP_RELEVANT_OCCUPANCY_BIT_COUNT] but for rooks.
-#[rustfmt::skip]
-pub const ROOK_RELEVANT_OCCUPANCY_BIT_COUNT: [u64; 64] = [
-    12, 11, 11, 11, 11, 11, 11, 12,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    12, 11, 11, 11, 11, 11, 11, 12,
-];
-
 pub use new::*;
 mod new {
     use super::*;
 
     pub fn calculate_bishop_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
+        use core::cmp::min;
+
+        use bit_board::{HEIGHT, NO_EA, NO_WE, SO_EA, SO_WE, WIDTH};
+
+        calculate_sliding_attacks_for(pos, blockers, &|file, rank| {
+            [
+                // moves to north east
+                (1..min(WIDTH - file, rank + 1), |b, i| b >> NO_EA * i),
+                // moves to south east
+                (1..min(WIDTH - file, HEIGHT - rank), |b, i| b << SO_EA * i),
+                // moves to south west
+                (1..min(file + 1, HEIGHT - rank), |b, i| b << SO_WE * i),
+                // moves to north west
+                (1..(min(file, rank) + 1), |b, i| b >> NO_WE * i),
+            ]
+        })
+    }
+
+    pub fn calculate_rook_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
+        use bit_board::{EAST, HEIGHT, NORTH, SOUTH, WEST, WIDTH};
+
+        calculate_sliding_attacks_for(pos, blockers, &|file, rank| {
+            [
+                // moves to north
+                (1..rank + 1, |b, i| b >> NORTH * i),
+                // moves to east
+                (1..WIDTH - file, |b, i| b << EAST * i),
+                // moves to south
+                (1..HEIGHT - rank, |b, i| b << SOUTH * i),
+                // moves to west
+                (1..file + 1, |b, i| b >> WEST * i),
+            ]
+        })
+    }
+
+    /// Calculates the moves of sliding pieces.
+    ///
+    /// # Arguments
+    ///
+    /// * `pos` - the position of the pice
+    /// * `blockers` - other pieces on the board (they could block moves)
+    /// * `get_dirs` - closure that returns range to loop over, and the offset for
+    ///    the desired direction
+    fn calculate_sliding_attacks_for(
+        pos: &dyn BoardPos,
+        blockers: u64,
+        get_dirs: &dyn Fn(u64, u64) -> [(Range<u64>, fn(u64, u64) -> u64); 4],
+    ) -> u64 {
         let i = pos.idx() as u64;
-        let board = bit_board::with_bit_at(i);
-
-        let mut attacks = 0;
-
         let file = i % bit_board::HEIGHT;
         let rank = i / bit_board::HEIGHT;
 
-        let to_no_ea = u64::min(bit_board::WIDTH - file, rank + 1);
-        let to_so_ea = u64::min(bit_board::WIDTH - file, bit_board::HEIGHT - rank);
-        let to_so_we = u64::min(file + 1, bit_board::HEIGHT - rank);
-        let to_no_we = u64::min(file, rank) + 1;
+        let board = bit_board::with_bit_at(pos.idx() as u64);
 
-        let dirs: [(Range<u64>, fn(u64, u64) -> u64); 4] = [
-            (1..to_no_ea, |b, i| b >> bit_board::NO_EA * i),
-            (1..to_so_ea, |b, i| b << bit_board::SO_EA * i),
-            (1..to_so_we, |b, i| b << bit_board::SO_WE * i),
-            (1..to_no_we, |b, i| b >> bit_board::NO_WE * i),
-        ];
-
-        for (range, dir_shift) in dirs {
+        let mut attacks = 0;
+        for (range, dir_shift) in get_dirs(file, rank) {
             for iter in range {
                 let shift = dir_shift(board, iter);
                 attacks |= shift;
@@ -137,6 +156,48 @@ mod new {
             assert_bit_boards_eq(
                 calculate_bishop_attacks_for(&Square::E4, blockers),
                 9386671504487612929,
+            );
+        }
+
+        #[test]
+        fn rook_attacks_no_ea_corner() {
+            assert_bit_boards_eq(
+                calculate_rook_attacks_for(&Square::G6, 0),
+                4629771061645230144,
+            );
+        }
+
+        #[test]
+        fn rook_attacks_so_ea_corner() {
+            assert_bit_boards_eq(
+                calculate_rook_attacks_for(&Square::G2, 0),
+                4665518383679160384,
+            );
+        }
+
+        #[test]
+        fn rook_attacks_so_we_corner() {
+            assert_bit_boards_eq(
+                calculate_rook_attacks_for(&Square::B2, 0),
+                215330564830528002,
+            );
+        }
+
+        #[test]
+        fn rook_attacks_no_we_corner() {
+            assert_bit_boards_eq(
+                calculate_rook_attacks_for(&Square::B7, 0),
+                144680345676217602,
+            );
+        }
+
+        #[test]
+        fn rook_attacks_blocker_north() {
+            let blockers = bit_board::with_bit_at(Square::E6.into());
+
+            assert_bit_boards_eq(
+                calculate_rook_attacks_for(&Square::E4, blockers),
+                1157443723186929664,
             );
         }
 

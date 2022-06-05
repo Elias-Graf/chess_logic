@@ -3,7 +3,7 @@ use std::ops::{Index, IndexMut};
 use crate::{square::BoardPos, Board, Color};
 
 /// Custom default trait.
-/// 
+///
 /// Same functionality as the [`Default`] trait, but defined in this create. That
 /// way it can be used on type aliases.
 pub trait CustomDefault {
@@ -234,36 +234,5 @@ impl Index<Color> for _ColoredU64PerSquare {
 impl IndexMut<Color> for _ColoredU64PerSquare {
     fn index_mut(&mut self, index: Color) -> &mut Self::Output {
         &mut self.masks[index as usize]
-    }
-}
-
-/// Code that I'm not sure what it does, or why it's used.
-///
-/// 'bb' = Black Box.
-///
-/// The goal is to have no code here in the future.
-pub mod bb {
-    use std::sync::atomic::{AtomicU32, Ordering};
-
-    use super::*;
-
-    /// Code from:
-    /// https://youtu.be/nyk3usU95IY?list=PLmN0neTso3Jxh8ZIylk74JpwfiWNI76Cs&t=318
-    pub fn set_occupancy(idx: u64, bits_in_mask: u64, attack_mask: u64) -> u64 {
-        let mut attack_mask = attack_mask;
-        let mut occupancy = 0;
-
-        for iter in 0..bits_in_mask {
-            if let Some(square) = get_first_set_bit(attack_mask) {
-                clear_bit(&mut attack_mask, square);
-
-                if idx & (1 << iter) > 0 {
-                    // set_bit(&mut occupancy, square);
-                    occupancy |= 1 << square;
-                }
-            }
-        }
-
-        occupancy
     }
 }

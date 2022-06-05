@@ -6,7 +6,6 @@ pub mod magic_bit_board;
 pub mod piece;
 pub mod square;
 
-
 pub use board::Board;
 pub use piece::Piece;
 
