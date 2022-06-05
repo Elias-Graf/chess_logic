@@ -3,7 +3,7 @@ use std::ops::Range;
 use once_cell::sync::Lazy;
 
 use crate::{
-    bit_board::{self, _ColoredU64PerSquare, _U64PerSquare},
+    bit_board::{self, ColoredU64PerSquare, CustomDefault, U64PerSquare},
     board::MoveByIdx,
     square::{BoardPos, Square},
     Board, Color,
@@ -31,12 +31,12 @@ const NOT_FILE_AB: u64 = 18229723555195321596;
 const NOT_FILE_GH: u64 = 4557430888798830399;
 const NOT_FILE_H: u64 = 9187201950435737471;
 
-pub const ROOK_RELEVANT_MOVE_MASK: Lazy<_U64PerSquare> =
+pub static ROOK_RELEVANT_MOVE_MASK: Lazy<U64PerSquare> =
     Lazy::new(generate_rook_relevant_move_mask);
 
-const KING_ATTACKS: Lazy<_U64PerSquare> = Lazy::new(generate_king_attacks);
-const KNIGHT_ATTACKS: Lazy<_U64PerSquare> = Lazy::new(generate_knight_attacks);
-const PAWN_ATTACKS: Lazy<_ColoredU64PerSquare> = Lazy::new(generate_pawn_attacks);
+static KING_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_king_attacks);
+static KNIGHT_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_knight_attacks);
+static PAWN_ATTACKS: Lazy<ColoredU64PerSquare> = Lazy::new(generate_pawn_attacks);
 
 pub use new::*;
 mod new {
@@ -738,11 +738,11 @@ const fn generate_to_edge_map() -> ToEdgeOffset {
 }
 
 /// Same as [generate_bishop_relevant_move_mask], but for rooks.
-fn generate_rook_relevant_move_mask() -> _U64PerSquare {
-    let mut mask = _U64PerSquare::new();
+fn generate_rook_relevant_move_mask() -> U64PerSquare {
+    let mut mask = U64PerSquare::default();
 
     for i in 0..bit_board::SIZE {
-        let mut board = bit_board::with_bit_at(i);
+        let board = bit_board::with_bit_at(i);
 
         let file = i % bit_board::HEIGHT;
         let rank = i / bit_board::HEIGHT;
@@ -753,97 +753,100 @@ fn generate_rook_relevant_move_mask() -> _U64PerSquare {
         let to_west = file;
 
         for iter in 1..to_north {
-            mask[&i] |= board >> bit_board::NORTH * iter;
+            mask[i as usize] |= board >> bit_board::NORTH * iter;
         }
         for iter in 1..to_east {
-            mask[&i] |= board << bit_board::EAST * iter;
+            mask[i as usize] |= board << bit_board::EAST * iter;
         }
         for iter in 1..to_south {
-            mask[&i] |= board << bit_board::SOUTH * iter;
+            mask[i as usize] |= board << bit_board::SOUTH * iter;
         }
         for iter in 1..to_west {
-            mask[&i] |= board >> bit_board::WEST * iter;
+            mask[i as usize] |= board >> bit_board::WEST * iter;
         }
     }
 
     mask
 }
 
-fn generate_king_attacks() -> _U64PerSquare {
-    let mut mask = _U64PerSquare::new();
+fn generate_king_attacks() -> U64PerSquare {
+    let mut mask = U64PerSquare::default();
 
     for i in 0..Board::SIZE as u64 {
-        let mut board = 0;
-        bit_board::set_bit(&mut board, i);
+        let mut board = bit_board::with_bit_at(i);
 
-        mask[&i] |= board >> bit_board::NORTH;
+        let pos: &dyn BoardPos = &i;
+
+        mask[pos] |= board >> bit_board::NORTH;
         if bit_board::is_set(board & NOT_FILE_H, i) {
-            mask[&i] |= board >> bit_board::NO_EA;
-            mask[&i] |= board << bit_board::EAST;
-            mask[&i] |= board << bit_board::SO_EA;
+            mask[pos] |= board >> bit_board::NO_EA;
+            mask[pos] |= board << bit_board::EAST;
+            mask[pos] |= board << bit_board::SO_EA;
         }
-        mask[&i] |= board << bit_board::SOUTH;
+        mask[pos] |= board << bit_board::SOUTH;
         if bit_board::is_set(board & NOT_FILE_A, i) {
-            mask[&i] |= board << bit_board::SO_WE;
-            mask[&i] |= board >> bit_board::WEST;
-            mask[&i] |= board >> bit_board::NO_WE;
+            mask[pos] |= board << bit_board::SO_WE;
+            mask[pos] |= board >> bit_board::WEST;
+            mask[pos] |= board >> bit_board::NO_WE;
         }
     }
 
     mask
 }
 
-fn generate_knight_attacks() -> _U64PerSquare {
-    let mut mask = _U64PerSquare::new();
+fn generate_knight_attacks() -> U64PerSquare {
+    let mut mask = U64PerSquare::default();
 
     for i in 0..Board::SIZE as u64 {
-        let mut board = 0;
-        bit_board::set_bit(&mut board, i);
+        let board = bit_board::with_bit_at(i);
+
+        let pos: &dyn BoardPos = &i;
 
         if bit_board::is_set(board & NOT_FILE_A, i) {
-            mask[&i] |= board >> bit_board::NORTH >> bit_board::NO_WE;
+            mask[pos] |= board >> bit_board::NORTH >> bit_board::NO_WE;
         }
         if bit_board::is_set(board & NOT_FILE_H, i) {
-            mask[&i] |= board >> bit_board::NORTH >> bit_board::NO_EA;
+            mask[pos] |= board >> bit_board::NORTH >> bit_board::NO_EA;
         }
         if bit_board::is_set(board & NOT_FILE_GH, i) {
-            mask[&i] |= board << bit_board::EAST >> bit_board::NO_EA;
-            mask[&i] |= board << bit_board::EAST << bit_board::SO_EA;
+            mask[pos] |= board << bit_board::EAST >> bit_board::NO_EA;
+            mask[pos] |= board << bit_board::EAST << bit_board::SO_EA;
         }
         if bit_board::is_set(board & NOT_FILE_A, i) {
-            mask[&i] |= board << bit_board::SOUTH << bit_board::SO_WE;
+            mask[pos] |= board << bit_board::SOUTH << bit_board::SO_WE;
         }
         if bit_board::is_set(board & NOT_FILE_H, i) {
-            mask[&i] |= board << bit_board::SOUTH << bit_board::SO_EA;
+            mask[pos] |= board << bit_board::SOUTH << bit_board::SO_EA;
         }
         if bit_board::is_set(board & NOT_FILE_AB, i) {
-            mask[&i] |= board >> bit_board::WEST << bit_board::SO_WE;
-            mask[&i] |= board >> bit_board::WEST >> bit_board::NO_WE;
+            mask[pos] |= board >> bit_board::WEST << bit_board::SO_WE;
+            mask[pos] |= board >> bit_board::WEST >> bit_board::NO_WE;
         }
     }
 
     mask
 }
 
-fn generate_pawn_attacks() -> _ColoredU64PerSquare {
-    let mut mask = _ColoredU64PerSquare::new();
+fn generate_pawn_attacks() -> ColoredU64PerSquare {
+    let mut mask = ColoredU64PerSquare::default();
 
     for i in 0..Board::SIZE as u64 {
-        let mut board = 0;
-        bit_board::set_bit(&mut board, i);
+        let board = bit_board::with_bit_at(i);
+
+        let pos: &dyn BoardPos = &i;
 
         if bit_board::is_set(board & NOT_FILE_A, i) {
-            mask[Color::White][&i] |= board >> bit_board::NO_WE;
+            mask[Color::White][pos] |= board >> bit_board::NO_WE;
         }
         if bit_board::is_set(board & NOT_FILE_H, i) {
-            mask[Color::White][&i] |= board >> bit_board::NO_EA;
+            mask[Color::White][pos] |= board >> bit_board::NO_EA;
         }
 
         if bit_board::is_set(board & NOT_FILE_A, i) {
-            mask[Color::Black][&i] |= board << bit_board::SO_WE;
+            mask[Color::Black][pos] |= board << bit_board::SO_WE;
         }
         if bit_board::is_set(board & NOT_FILE_H, i) {
-            mask[Color::Black][&i] |= board << bit_board::SO_EA;
+            mask[Color::Black][pos] |= board << bit_board::SO_EA;
         }
     }
 

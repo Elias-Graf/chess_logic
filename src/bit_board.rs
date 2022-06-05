@@ -181,58 +181,24 @@ impl IndexMut<&dyn BoardPos> for U64PerSquare {
     }
 }
 
-// TODO: remove
-pub struct _U64PerSquare([u64; Board::SIZE]);
+pub type ColoredU64PerSquare = [U64PerSquare; 2];
 
-impl _U64PerSquare {
-    pub const fn new() -> Self {
-        _U64PerSquare([0; Board::SIZE])
+impl CustomDefault for ColoredU64PerSquare {
+    fn default() -> Self {
+        [U64PerSquare::default(); 2]
     }
 }
 
-impl Index<&dyn BoardPos> for _U64PerSquare {
-    type Output = u64;
-
-    fn index(&self, index: &dyn BoardPos) -> &Self::Output {
-        &self.0[index.idx() as usize]
-    }
-}
-
-impl IndexMut<&dyn BoardPos> for _U64PerSquare {
-    fn index_mut(&mut self, index: &dyn BoardPos) -> &mut Self::Output {
-        &mut self.0[index.idx() as usize]
-    }
-}
-
-impl From<[u64; Board::SIZE]> for _U64PerSquare {
-    fn from(squares: [u64; Board::SIZE]) -> Self {
-        Self(squares)
-    }
-}
-
-// TODO: remove
-pub struct _ColoredU64PerSquare {
-    masks: [_U64PerSquare; 2],
-}
-
-impl _ColoredU64PerSquare {
-    pub fn new() -> Self {
-        _ColoredU64PerSquare {
-            masks: [_U64PerSquare::new(), _U64PerSquare::new()],
-        }
-    }
-}
-
-impl Index<Color> for _ColoredU64PerSquare {
-    type Output = _U64PerSquare;
+impl Index<Color> for ColoredU64PerSquare {
+    type Output = U64PerSquare;
 
     fn index(&self, index: Color) -> &Self::Output {
-        &self.masks[index as usize]
+        &self[index as usize]
     }
 }
 
-impl IndexMut<Color> for _ColoredU64PerSquare {
+impl IndexMut<Color> for ColoredU64PerSquare {
     fn index_mut(&mut self, index: Color) -> &mut Self::Output {
-        &mut self.masks[index as usize]
+        &mut self[index as usize]
     }
 }
