@@ -29,10 +29,16 @@ impl From<Square> for u64 {
     }
 }
 
-impl TryFrom<u64> for Square {
+impl From<Square> for usize {
+    fn from(square: Square) -> Self {
+        square as usize
+    }
+}
+
+impl TryFrom<usize> for Square {
     type Error = String;
 
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
         use Square::*;
 
         #[rustfmt::skip]
@@ -48,7 +54,7 @@ impl TryFrom<u64> for Square {
         ];
 
         LOOKUP
-            .get(value as usize)
+            .get(value)
             .ok_or_else(|| {
                 format!(
                     "index '{}' is not valid, make sure it's in the range '0..64'",
@@ -56,6 +62,14 @@ impl TryFrom<u64> for Square {
                 )
             })
             .map(|s| *s)
+    }
+}
+
+impl TryFrom<u64> for Square {
+    type Error = String;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Square::try_from(value)
     }
 }
 

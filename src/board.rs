@@ -37,7 +37,7 @@ impl Move for MoveBySquare {
 
 // TODO: Consider refactoring to use `i8` everywhere and save a bunch of casting.
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Board {
     pub black_bishops: u64,
     pub black_king: u64,
@@ -49,6 +49,9 @@ pub struct Board {
     pub can_black_castle_queen_side: bool,
     pub can_white_castle_king_side: bool,
     pub can_white_castle_queen_side: bool,
+    pub en_passant_target_idx: Option<usize>,
+    pub is_whites_turn: bool,
+    #[deprecated(note = "in the future the `en_passant_target_idx` should be used")]
     pub piece_eligible_for_en_passant: Vec<(usize, usize)>,
     pub promote_idx: Option<usize>,
     pub white_bishops: u64,
@@ -279,10 +282,12 @@ impl Board {
             black_pawns: 0,
             black_queens: 0,
             black_rooks: 0,
-            can_black_castle_king_side: true,
-            can_black_castle_queen_side: true,
-            can_white_castle_king_side: true,
-            can_white_castle_queen_side: true,
+            can_black_castle_king_side: false,
+            can_black_castle_queen_side: false,
+            can_white_castle_king_side: false,
+            can_white_castle_queen_side: false,
+            en_passant_target_idx: None,
+            is_whites_turn: true,
             piece_eligible_for_en_passant: Vec::with_capacity(2),
             promote_idx: None,
             white_bishops: 0,
@@ -296,6 +301,11 @@ impl Board {
 
     pub fn new_with_standard_formation() -> Self {
         let mut board = Self::new_empty();
+
+        board.can_black_castle_king_side = true;
+        board.can_black_castle_queen_side = true;
+        board.can_white_castle_king_side = true;
+        board.can_white_castle_queen_side = true;
 
         // Standard chess formation:
         board.set_by_idx(0, Some(PieceInstance::new(Color::Black, Piece::Rook)));
