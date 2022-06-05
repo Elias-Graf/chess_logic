@@ -31,6 +31,7 @@ pub fn get_bishop_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
     let magic_index = magic_index_of(
         BISHOP_MAGIC_NUMBERS[pos],
         blockers,
+        RELEVANT_BISHOP_MOVES_PER_SQUARE[pos],
         NUMBER_OF_RELEVANT_BISHOP_MOVES_PER_SQUARE[pos],
     );
 
@@ -42,6 +43,7 @@ pub fn get_rook_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
     let magic_index = magic_index_of(
         ROOK_MAGIC_NUMBERS[pos],
         blockers,
+        RELEVANT_ROOK_MOVES_PER_SQUARE[pos],
         NUMBER_OF_RELEVANT_ROOK_MOVES_PER_SQUARE[pos],
     );
 
@@ -220,7 +222,7 @@ const ROOK_MAGIC_NUMBERS: U64PerSquare = [
     0x6042084104102,
 ];
 
-static RELEVANT_BISHOP_MOVES_PER_SQUARE: Lazy<U64PerSquare> =
+pub static RELEVANT_BISHOP_MOVES_PER_SQUARE: Lazy<U64PerSquare> =
     Lazy::new(generate_relevant_bishop_moves_per_square);
 static RELEVANT_ROOK_MOVES_PER_SQUARE: Lazy<U64PerSquare> =
     Lazy::new(generate_relevant_rook_moves_per_square);
@@ -413,6 +415,7 @@ fn generate_all_possible_attacks_for(
             let magic_index = magic_index_of(
                 magic_numbers[i],
                 occupancy_variant,
+                relevant_moves,
                 number_of_relevant_moves,
             );
 
@@ -477,6 +480,7 @@ fn generate_magic_number_for(pos: &dyn BoardPos, piece: Piece) -> u64 {
             let magic_index = magic_index_of(
                 magic_number,
                 occupancy_variants[i],
+                relevant_moves,
                 number_of_relevant_moves,
             );
 
@@ -516,8 +520,14 @@ fn number_of_occupancy_variants(number_of_relevant_moves: u64) -> usize {
 ///    `occupancies`, see [`find_magic_number`] to checkout the generation.
 /// * `occupancies` - what squares are occupied
 /// * `number_of_occupied_sports` - used to further differentiate indexes
-fn magic_index_of(magic_number: u64, occupancies: u64, number_of_relevant_bits: u64) -> usize {
-    occupancies.wrapping_mul(magic_number) as usize >> 64 - number_of_relevant_bits
+fn magic_index_of(
+    magic_number: u64,
+    mut occupancies: u64,
+    relevant_move_mask: u64,
+    number_of_relevant_moves: u64,
+) -> usize {
+    occupancies &= relevant_move_mask;
+    occupancies.wrapping_mul(magic_number) as usize >> 64 - number_of_relevant_moves
 }
 
 /// Generate a number that has a low amount of bits set to one.
