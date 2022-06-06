@@ -1,7 +1,6 @@
 use std::ops::{Index, IndexMut};
 
-use crate::{square::BoardPos, Board, Color, type_alias_default::TypeAliasDefault};
-
+use crate::{type_alias_default::TypeAliasDefault, Board, Color};
 
 pub const SIZE: u64 = Board::SIZE as u64;
 pub const HEIGHT: u64 = Board::HEIGHT as u64;
@@ -157,20 +156,6 @@ pub type U64PerSquare = [u64; Board::SIZE];
 impl TypeAliasDefault for U64PerSquare {
     fn default() -> Self {
         [0; Board::SIZE]
-    }
-}
-
-impl Index<&dyn BoardPos> for U64PerSquare {
-    type Output = u64;
-
-    fn index(&self, index: &dyn BoardPos) -> &Self::Output {
-        &self[index.idx() as usize]
-    }
-}
-
-impl IndexMut<&dyn BoardPos> for U64PerSquare {
-    fn index_mut(&mut self, index: &dyn BoardPos) -> &mut Self::Output {
-        &mut self[index.idx() as usize]
     }
 }
 

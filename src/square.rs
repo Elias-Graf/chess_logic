@@ -14,7 +14,7 @@ pub enum Square {
 }
 
 pub trait BoardPos: Debug {
-    fn idx(&self) -> i8;
+    fn idx(&self) -> usize;
 }
 
 impl From<Square> for i8 {
@@ -65,34 +65,14 @@ impl TryFrom<usize> for Square {
     }
 }
 
-impl TryFrom<u64> for Square {
-    type Error = String;
-
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
-        Square::try_from(value)
-    }
-}
-
-impl BoardPos for i8 {
-    fn idx(&self) -> i8 {
+impl BoardPos for usize {
+    fn idx(&self) -> usize {
         *self
     }
 }
 
-impl BoardPos for u64 {
-    fn idx(&self) -> i8 {
-        (*self) as i8
-    }
-}
-
-impl BoardPos for usize {
-    fn idx(&self) -> i8 {
-        (*self) as i8
-    }
-}
-
 impl BoardPos for Square {
-    fn idx(&self) -> i8 {
+    fn idx(&self) -> usize {
         (*self).into()
     }
 }

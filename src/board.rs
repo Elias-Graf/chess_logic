@@ -158,11 +158,11 @@ impl Board {
     ///
     /// # Panics
     /// If no piece is at the source index.
-    pub fn do_move(&mut self, mv: &dyn Move) {
+    pub fn do_move(&mut self, mv: &impl Move) {
         let src_idx = mv.src_idx();
         let dst_idx = mv.dst_idx();
 
-        let src_ins = match self.get(&src_idx) {
+        let src_ins = match self.get(&(src_idx as usize)) {
             Some(i) => i,
             None => panic!(
                 "cannot execute move '{:?}' because there is no piece at the source index",
@@ -209,7 +209,7 @@ impl Board {
     /// This function is not very performant and more of a pretty interface. If
     /// speed is important, one might consider accessing the piece fields (bit boards)
     /// directly.
-    pub fn get(&self, idx: &dyn BoardPos) -> Option<PieceInstance> {
+    pub fn get(&self, idx: &impl BoardPos) -> Option<PieceInstance> {
         let i = idx.idx() as u64;
 
         for color in [Color::Black, Color::White] {
@@ -435,7 +435,7 @@ impl Board {
         self.piece_eligible_for_en_passant.clear()
     }
 
-    pub fn set(&mut self, idx: &dyn BoardPos, color: Color, piece: Piece) {
+    pub fn set(&mut self, idx: &impl BoardPos, color: Color, piece: Piece) {
         self.set_by_idx(idx.idx() as usize, Some(PieceInstance::new(color, piece)));
     }
 

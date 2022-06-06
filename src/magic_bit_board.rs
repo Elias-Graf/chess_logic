@@ -20,35 +20,37 @@ use crate::{
     bit_board::{self, U64PerSquare},
     piece,
     square::BoardPos,
-    Board, Piece,
     type_alias_default::TypeAliasDefault,
+    Board, Piece,
 };
 
 /// Returns the bishop moves for a given position, with given blockers.
 ///
 /// Abstracts away all the table lookups maths. Read the module-level documentation
 /// for more information.
-pub fn get_bishop_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
+pub fn get_bishop_attacks_for(pos: &impl BoardPos, blockers: u64) -> u64 {
+    let idx = pos.idx();
     let magic_index = magic_index_of(
-        BISHOP_MAGIC_NUMBERS[pos],
+        BISHOP_MAGIC_NUMBERS[idx],
         blockers,
-        RELEVANT_BISHOP_MOVES_PER_SQUARE[pos],
-        NUMBER_OF_RELEVANT_BISHOP_MOVES_PER_SQUARE[pos],
+        RELEVANT_BISHOP_MOVES_PER_SQUARE[idx],
+        NUMBER_OF_RELEVANT_BISHOP_MOVES_PER_SQUARE[idx],
     );
 
-    ALL_POSSIBLE_BISHOP_ATTACKS[magic_index][pos]
+    ALL_POSSIBLE_BISHOP_ATTACKS[magic_index][idx]
 }
 
 /// Same as [`get_bishop_attacks_for`], but for rooks.
-pub fn get_rook_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
+pub fn get_rook_attacks_for(pos: &impl BoardPos, blockers: u64) -> u64 {
+    let idx = pos.idx();
     let magic_index = magic_index_of(
-        ROOK_MAGIC_NUMBERS[pos],
+        ROOK_MAGIC_NUMBERS[idx],
         blockers,
-        RELEVANT_ROOK_MOVES_PER_SQUARE[pos],
-        NUMBER_OF_RELEVANT_ROOK_MOVES_PER_SQUARE[pos],
+        RELEVANT_ROOK_MOVES_PER_SQUARE[idx],
+        NUMBER_OF_RELEVANT_ROOK_MOVES_PER_SQUARE[idx],
     );
 
-    ALL_POSSIBLE_ROOK_ATTACKS[magic_index][pos]
+    ALL_POSSIBLE_ROOK_ATTACKS[magic_index][idx]
 }
 
 #[cfg(test)]
@@ -314,7 +316,7 @@ fn generate_relevant_bishop_moves_per_square() -> U64PerSquare {
     let mut moves = U64PerSquare::default();
 
     for i in 0..bit_board::SIZE {
-        let pos: &dyn BoardPos = &i;
+        let i_usize = i as usize;
 
         let board = bit_board::with_bit_at(i);
 
@@ -327,16 +329,16 @@ fn generate_relevant_bishop_moves_per_square() -> U64PerSquare {
         let to_no_we = u64::min(file, rank);
 
         for iter in 1..to_no_ea {
-            moves[pos] |= board >> bit_board::NO_EA * iter;
+            moves[i_usize] |= board >> bit_board::NO_EA * iter;
         }
         for iter in 1..to_so_ea {
-            moves[pos] |= board << bit_board::SO_EA * iter;
+            moves[i_usize] |= board << bit_board::SO_EA * iter;
         }
         for iter in 1..to_so_we {
-            moves[pos] |= board << bit_board::SO_WE * iter;
+            moves[i_usize] |= board << bit_board::SO_WE * iter;
         }
         for iter in 1..to_no_we {
-            moves[pos] |= board >> bit_board::NO_WE * iter;
+            moves[i_usize] |= board >> bit_board::NO_WE * iter;
         }
     }
 
@@ -348,7 +350,7 @@ fn generate_relevant_rook_moves_per_square() -> U64PerSquare {
     let mut moves = U64PerSquare::default();
 
     for i in 0..bit_board::SIZE {
-        let pos: &dyn BoardPos = &i;
+        let i_usize = i as usize;
 
         let board = bit_board::with_bit_at(i);
 
@@ -361,16 +363,16 @@ fn generate_relevant_rook_moves_per_square() -> U64PerSquare {
         let to_west = file;
 
         for iter in 1..to_north {
-            moves[pos] |= board >> bit_board::NORTH * iter;
+            moves[i_usize] |= board >> bit_board::NORTH * iter;
         }
         for iter in 1..to_east {
-            moves[pos] |= board << bit_board::EAST * iter;
+            moves[i_usize] |= board << bit_board::EAST * iter;
         }
         for iter in 1..to_south {
-            moves[pos] |= board << bit_board::SOUTH * iter;
+            moves[i_usize] |= board << bit_board::SOUTH * iter;
         }
         for iter in 1..to_west {
-            moves[pos] |= board >> bit_board::WEST * iter;
+            moves[i_usize] |= board >> bit_board::WEST * iter;
         }
     }
 
@@ -382,7 +384,7 @@ fn generate_all_possible_bishop_attacks() -> Box<[U64PerSquare; 4096]> {
         &RELEVANT_BISHOP_MOVES_PER_SQUARE,
         &NUMBER_OF_RELEVANT_BISHOP_MOVES_PER_SQUARE,
         &BISHOP_MAGIC_NUMBERS,
-        &piece::calculate_bishop_attacks_for,
+        piece::calculate_bishop_attacks_for,
     )
 }
 
@@ -391,7 +393,7 @@ fn generate_all_possible_rook_attacks() -> Box<[U64PerSquare; 4096]> {
         &RELEVANT_ROOK_MOVES_PER_SQUARE,
         &NUMBER_OF_RELEVANT_ROOK_MOVES_PER_SQUARE,
         &ROOK_MAGIC_NUMBERS,
-        &piece::calculate_rook_attacks_for,
+        piece::calculate_rook_attacks_for,
     )
 }
 
@@ -399,7 +401,7 @@ fn generate_all_possible_attacks_for(
     all_relevant_moves: &U64PerSquare,
     number_of_all_relevant_moves: &U64PerSquare,
     magic_numbers: &U64PerSquare,
-    calculate_attacks_for: &dyn Fn(&dyn BoardPos, u64) -> u64,
+    calculate_attacks_for: fn(&usize, u64) -> u64,
 ) -> Box<[U64PerSquare; 4096]> {
     let mut all_attacks: Box<[U64PerSquare; 4096]> = vec![U64PerSquare::default(); 4096]
         .into_boxed_slice()
@@ -427,21 +429,23 @@ fn generate_all_possible_attacks_for(
     all_attacks
 }
 
-fn generate_magic_number_for(pos: &dyn BoardPos, piece: Piece) -> u64 {
+fn generate_magic_number_for<T: BoardPos>(pos: &T, piece: Piece) -> u64 {
+    let idx = pos.idx();
+
     let (relevant_moves, number_of_relevant_moves, get_attacks_for): (
         u64,
         u64,
-        &dyn Fn(&dyn BoardPos, u64) -> u64,
+        fn(&T, u64) -> u64,
     ) = match piece {
         Piece::Bishop => (
-            RELEVANT_BISHOP_MOVES_PER_SQUARE[pos],
-            NUMBER_OF_RELEVANT_BISHOP_MOVES_PER_SQUARE[pos],
-            &piece::calculate_bishop_attacks_for,
+            RELEVANT_BISHOP_MOVES_PER_SQUARE[idx],
+            NUMBER_OF_RELEVANT_BISHOP_MOVES_PER_SQUARE[idx],
+            piece::calculate_bishop_attacks_for,
         ),
         Piece::Rook => (
-            RELEVANT_ROOK_MOVES_PER_SQUARE[pos],
-            NUMBER_OF_RELEVANT_ROOK_MOVES_PER_SQUARE[pos],
-            &piece::calculate_rook_attacks_for,
+            RELEVANT_ROOK_MOVES_PER_SQUARE[idx],
+            NUMBER_OF_RELEVANT_ROOK_MOVES_PER_SQUARE[idx],
+            piece::calculate_rook_attacks_for,
         ),
         _ => panic!(
             "this function is only callable for bishops and rooks, was called with '{:?}'",
