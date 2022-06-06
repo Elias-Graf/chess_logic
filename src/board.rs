@@ -1,4 +1,7 @@
-use std::fmt::Debug;
+use std::{
+    fmt::Debug,
+    ops::{Index, IndexMut},
+};
 
 use crate::{
     bit_board,
@@ -35,31 +38,41 @@ impl Move for MoveBySquare {
     }
 }
 
+pub type BitBoardPerColor = [u64; 2];
+
+impl Index<Color> for BitBoardPerColor {
+    type Output = u64;
+
+    fn index(&self, index: Color) -> &Self::Output {
+        &self[index as usize]
+    }
+}
+
+impl IndexMut<Color> for BitBoardPerColor {
+    fn index_mut(&mut self, index: Color) -> &mut Self::Output {
+        &mut self[index as usize]
+    }
+}
+
 // TODO: Consider refactoring to use `i8` everywhere and save a bunch of casting.
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Board {
-    pub black_bishops: u64,
-    pub black_king: u64,
-    pub black_knights: u64,
-    pub black_pawns: u64,
-    pub black_queens: u64,
-    pub black_rooks: u64,
+    pub bishops: BitBoardPerColor,
     pub can_black_castle_king_side: bool,
     pub can_black_castle_queen_side: bool,
     pub can_white_castle_king_side: bool,
     pub can_white_castle_queen_side: bool,
     pub en_passant_target_idx: Option<usize>,
     pub is_whites_turn: bool,
+    pub king: BitBoardPerColor,
+    pub knights: BitBoardPerColor,
+    pub pawns: BitBoardPerColor,
     #[deprecated(note = "in the future the `en_passant_target_idx` should be used")]
     pub piece_eligible_for_en_passant: Vec<(usize, usize)>,
     pub promote_idx: Option<usize>,
-    pub white_bishops: u64,
-    pub white_king: u64,
-    pub white_knights: u64,
-    pub white_pawns: u64,
-    pub white_queens: u64,
-    pub white_rooks: u64,
+    pub queens: BitBoardPerColor,
+    pub rooks: BitBoardPerColor,
 }
 
 impl Board {
@@ -191,45 +204,33 @@ impl Board {
         self.set_by_idx(dst_idx as usize, Some(src_ins));
     }
 
+    /// Get the pice ([`PieceInstance`]) on the specified location
+    ///
+    /// This function is not very performant and more of a pretty interface. If
+    /// speed is important, one might consider accessing the piece fields (bit boards)
+    /// directly.
     pub fn get(&self, idx: &dyn BoardPos) -> Option<PieceInstance> {
         let i = idx.idx() as u64;
 
-        if bit_board::is_set(self.black_bishops, i) {
-            return Some(PieceInstance::new(Color::Black, Piece::Bishop));
-        }
-        if bit_board::is_set(self.black_king, i) {
-            return Some(PieceInstance::new(Color::Black, Piece::King));
-        }
-        if bit_board::is_set(self.black_knights, i) {
-            return Some(PieceInstance::new(Color::Black, Piece::Knight));
-        }
-        if bit_board::is_set(self.black_pawns, i) {
-            return Some(PieceInstance::new(Color::Black, Piece::Pawn));
-        }
-        if bit_board::is_set(self.black_queens, i) {
-            return Some(PieceInstance::new(Color::Black, Piece::Queen));
-        }
-        if bit_board::is_set(self.black_rooks, i) {
-            return Some(PieceInstance::new(Color::Black, Piece::Rook));
-        }
-
-        if bit_board::is_set(self.white_bishops, i) {
-            return Some(PieceInstance::new(Color::White, Piece::Bishop));
-        }
-        if bit_board::is_set(self.white_king, i) {
-            return Some(PieceInstance::new(Color::White, Piece::King));
-        }
-        if bit_board::is_set(self.white_knights, i) {
-            return Some(PieceInstance::new(Color::White, Piece::Knight));
-        }
-        if bit_board::is_set(self.white_pawns, i) {
-            return Some(PieceInstance::new(Color::White, Piece::Pawn));
-        }
-        if bit_board::is_set(self.white_queens, i) {
-            return Some(PieceInstance::new(Color::White, Piece::Queen));
-        }
-        if bit_board::is_set(self.white_rooks, i) {
-            return Some(PieceInstance::new(Color::White, Piece::Rook));
+        for color in [Color::Black, Color::White] {
+            if bit_board::is_set(self.bishops[color], i) {
+                return Some(PieceInstance::new(color, Piece::Bishop));
+            }
+            if bit_board::is_set(self.king[color], i) {
+                return Some(PieceInstance::new(color, Piece::King));
+            }
+            if bit_board::is_set(self.knights[color], i) {
+                return Some(PieceInstance::new(color, Piece::Knight));
+            }
+            if bit_board::is_set(self.pawns[color], i) {
+                return Some(PieceInstance::new(color, Piece::Pawn));
+            }
+            if bit_board::is_set(self.queens[color], i) {
+                return Some(PieceInstance::new(color, Piece::Queen));
+            }
+            if bit_board::is_set(self.rooks[color], i) {
+                return Some(PieceInstance::new(color, Piece::Rook));
+            }
         }
 
         None
@@ -244,7 +245,7 @@ impl Board {
         }
     }
 
-    pub fn is_pos_attacked_by(&self, pos: &dyn BoardPos, atk_color: &Color) -> bool {
+    pub fn is_pos_attacked_by(&self, pos: &impl BoardPos, atk_color: &Color) -> bool {
         // Since the attacks are essentially mirrored for both sides, we just generate
         // the opponent attacks on the square to check. If the attack includes the
         // position if our piece, we can be attacked, and the reverse is also true.
@@ -279,91 +280,46 @@ impl Board {
         // We can see that the bit on E5 is set on both boards, thus the square
         // D6 can be attacked by the white pawn on E5.
 
-        let all_pieces = self.black_bishops
-            | self.black_king
-            | self.black_knights
-            | self.black_pawns
-            | self.black_queens
-            | self.black_rooks
-            | self.white_bishops
-            | self.white_king
-            | self.white_knights
-            | self.white_pawns
-            | self.white_queens
-            | self.white_rooks;
+        let all_pieces = self.bishops[Color::Black]
+            | self.king[Color::Black]
+            | self.knights[Color::Black]
+            | self.pawns[Color::Black]
+            | self.queens[Color::Black]
+            | self.rooks[Color::Black]
+            | self.bishops[Color::White]
+            | self.king[Color::White]
+            | self.knights[Color::White]
+            | self.pawns[Color::White]
+            | self.queens[Color::White]
+            | self.rooks[Color::White];
 
-        if atk_color == &Color::White {
-            if bit_board::has_set_bits(
-                piece::get_bishop_attacks_for(pos, all_pieces) & self.white_bishops,
-            ) {
-                return true;
-            }
-        } else {
-            if bit_board::has_set_bits(
-                piece::get_bishop_attacks_for(pos, all_pieces) & self.black_bishops,
-            ) {
-                return true;
-            }
+        if bit_board::has_set_bits(
+            piece::get_bishop_attacks_for(pos, all_pieces) & self.bishops[*atk_color],
+        ) {
+            return true;
         }
 
-        if atk_color == &Color::White {
-            if bit_board::has_set_bits(piece::KNIGHT_ATTACKS[pos] & self.white_knights) {
-                return true;
-            }
-        } else {
-            if bit_board::has_set_bits(piece::KNIGHT_ATTACKS[pos] & self.black_knights) {
-                return true;
-            }
+        if bit_board::has_set_bits(piece::get_king_attacks_for(pos) & self.king[*atk_color]) {
+            return true;
         }
 
-        if atk_color == &Color::White {
-            if bit_board::has_set_bits(piece::KING_ATTACKS[pos] & self.white_king) {
-                return true;
-            }
-        } else {
-            if bit_board::has_set_bits(piece::KING_ATTACKS[pos] & self.black_king) {
-                return true;
-            }
+        if bit_board::has_set_bits(piece::get_knight_attacks_for(pos) & self.knights[*atk_color]) {
+            return true;
         }
 
-        // TODO: if there was a function to get the "opposing pawns", this could
-        // be simplified to:
-        // ```
-        // let opposing = atk_color.opposing();
-        // if bit_board::has_set_bits(piece::PAWN_ATTACKS[opposing][pos] & self.get_pawns(opposing)) {
-        //     return true;
-        // }
-        // ```
-        // alternatively just do:
-        // ```
-        // let opposing_pawns = if atk_color == Color::White { self.black_pawns } else { self.white_pawns };
-        // ```
-        // The different boards could also just be stored in an table. E.g.: `self.pawns[Color::Black]`.
-        if atk_color == &Color::White {
-            if bit_board::has_set_bits(piece::PAWN_ATTACKS[Color::Black][pos] & self.white_pawns) {
-                return true;
-            }
-        } else {
-            if bit_board::has_set_bits(piece::PAWN_ATTACKS[Color::White][pos] & self.black_pawns) {
-                return true;
-            }
+        if bit_board::has_set_bits(
+            piece::get_pawn_attacks_for(pos, &atk_color.opposing()) & self.pawns[*atk_color],
+        ) {
+            return true;
         }
 
         // The Queen attacks are already covered by checking bishops and rooks,
         // and not explicitly checked here.
 
-        if atk_color == &Color::White {
-            if bit_board::has_set_bits(
-                piece::get_rook_attacks_for(pos, all_pieces) & self.white_rooks,
-            ) {
-                return true;
-            }
-        } else {
-            if bit_board::has_set_bits(
-                piece::get_rook_attacks_for(pos, all_pieces) & self.black_rooks,
-            ) {
-                return true;
-            }
+        if bit_board::has_set_bits(
+            piece::get_rook_attacks_for(pos, all_pieces) & self.rooks[*atk_color],
+        ) {
+            return true;
         }
 
         false
@@ -371,26 +327,20 @@ impl Board {
 
     pub fn new_empty() -> Self {
         Self {
-            black_bishops: 0,
-            black_king: 0,
-            black_knights: 0,
-            black_pawns: 0,
-            black_queens: 0,
-            black_rooks: 0,
+            bishops: [0; 2],
             can_black_castle_king_side: false,
             can_black_castle_queen_side: false,
             can_white_castle_king_side: false,
             can_white_castle_queen_side: false,
             en_passant_target_idx: None,
             is_whites_turn: true,
+            king: [0; 2],
+            knights: [0; 2],
+            pawns: [0; 2],
             piece_eligible_for_en_passant: Vec::with_capacity(2),
             promote_idx: None,
-            white_bishops: 0,
-            white_king: 0,
-            white_knights: 0,
-            white_pawns: 0,
-            white_queens: 0,
-            white_rooks: 0,
+            queens: [0; 2],
+            rooks: [0; 2],
         }
     }
 
@@ -491,42 +441,28 @@ impl Board {
 
     #[deprecated(note = "simply use `set` instead")]
     pub fn set_by_idx(&mut self, idx: usize, pos: Option<PieceInstance>) {
-        // self.poses[idx] = pos;
-
-        if let Some(ins) = pos.as_ref() {
+        if let Some(PieceInstance { color, piece }) = pos {
             let i = idx as u64;
 
-            match (&ins.color, &ins.piece) {
-                (Color::Black, Piece::Bishop) => bit_board::set_bit(&mut self.black_bishops, i),
-                (Color::Black, Piece::King) => bit_board::set_bit(&mut self.black_king, i),
-                (Color::Black, Piece::Knight) => bit_board::set_bit(&mut self.black_knights, i),
-                (Color::Black, Piece::Pawn) => bit_board::set_bit(&mut self.black_pawns, i),
-                (Color::Black, Piece::Queen) => bit_board::set_bit(&mut self.black_queens, i),
-                (Color::Black, Piece::Rook) => bit_board::set_bit(&mut self.black_rooks, i),
-                (Color::White, Piece::Bishop) => bit_board::set_bit(&mut self.white_bishops, i),
-                (Color::White, Piece::King) => bit_board::set_bit(&mut self.white_king, i),
-                (Color::White, Piece::Knight) => bit_board::set_bit(&mut self.white_knights, i),
-                (Color::White, Piece::Pawn) => bit_board::set_bit(&mut self.white_pawns, i),
-                (Color::White, Piece::Queen) => bit_board::set_bit(&mut self.white_queens, i),
-                (Color::White, Piece::Rook) => bit_board::set_bit(&mut self.white_rooks, i),
+            match piece {
+                Piece::Bishop => bit_board::set_bit(&mut self.bishops[color], i),
+                Piece::King => bit_board::set_bit(&mut self.king[color], i),
+                Piece::Knight => bit_board::set_bit(&mut self.knights[color], i),
+                Piece::Pawn => bit_board::set_bit(&mut self.pawns[color], i),
+                Piece::Queen => bit_board::set_bit(&mut self.queens[color], i),
+                Piece::Rook => bit_board::set_bit(&mut self.rooks[color], i),
             }
         } else {
             let i = idx as u64;
 
-            bit_board::clear_bit(&mut self.black_bishops, i);
-            bit_board::clear_bit(&mut self.black_king, i);
-            bit_board::clear_bit(&mut self.black_knights, i);
-            bit_board::clear_bit(&mut self.black_pawns, i);
-            bit_board::clear_bit(&mut self.black_queens, i);
-            bit_board::clear_bit(&mut self.black_rooks, i);
-
-            bit_board::clear_bit(&mut self.white_bishops, i);
-            bit_board::clear_bit(&mut self.white_bishops, i);
-            bit_board::clear_bit(&mut self.white_king, i);
-            bit_board::clear_bit(&mut self.white_knights, i);
-            bit_board::clear_bit(&mut self.white_pawns, i);
-            bit_board::clear_bit(&mut self.white_queens, i);
-            bit_board::clear_bit(&mut self.white_rooks, i);
+            for color in [Color::Black, Color::White] {
+                bit_board::clear_bit(&mut self.bishops[color], i);
+                bit_board::clear_bit(&mut self.king[color], i);
+                bit_board::clear_bit(&mut self.knights[color], i);
+                bit_board::clear_bit(&mut self.pawns[color], i);
+                bit_board::clear_bit(&mut self.queens[color], i);
+                bit_board::clear_bit(&mut self.rooks[color], i);
+            }
         }
     }
 }
@@ -545,8 +481,6 @@ impl PieceInstance {
 
 #[cfg(test)]
 mod tests {
-    use crate::bit_board::U64PerSquare;
-
     use super::*;
 
     use Square::*;

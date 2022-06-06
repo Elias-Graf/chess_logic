@@ -17,10 +17,11 @@ use std::collections::HashMap;
 use once_cell::sync::Lazy;
 
 use crate::{
-    bit_board::{self, CustomDefault, U64PerSquare},
+    bit_board::{self, U64PerSquare},
     piece,
     square::BoardPos,
     Board, Piece,
+    type_alias_default::TypeAliasDefault,
 };
 
 /// Returns the bishop moves for a given position, with given blockers.

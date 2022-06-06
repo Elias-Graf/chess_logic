@@ -5,6 +5,7 @@ pub mod fen;
 pub mod magic_bit_board;
 pub mod piece;
 pub mod square;
+pub mod type_alias_default;
 
 #[cfg(test)]
 mod testing_utils;

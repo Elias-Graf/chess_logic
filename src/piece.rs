@@ -3,11 +3,12 @@ use std::ops::Range;
 use once_cell::sync::Lazy;
 
 use crate::{
-    bit_board::{self, ColoredU64PerSquare, CustomDefault, U64PerSquare},
+    bit_board::{self, ColoredU64PerSquare, U64PerSquare},
     board::MoveByIdx,
     magic_bit_board,
     square::{BoardPos, Square},
     Board, Color,
+    type_alias_default::TypeAliasDefault,
 };
 
 // TODO: Investigate if this constants should really be defined here.
@@ -32,15 +33,27 @@ const NOT_FILE_AB: u64 = 18229723555195321596;
 const NOT_FILE_GH: u64 = 4557430888798830399;
 const NOT_FILE_H: u64 = 9187201950435737471;
 
-pub static ROOK_RELEVANT_MOVE_MASK: Lazy<U64PerSquare> =
+static ROOK_RELEVANT_MOVE_MASK: Lazy<U64PerSquare> =
     Lazy::new(generate_rook_relevant_move_mask);
 
-pub static KING_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_king_attacks);
-pub static KNIGHT_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_knight_attacks);
-pub static PAWN_ATTACKS: Lazy<ColoredU64PerSquare> = Lazy::new(generate_pawn_attacks);
+static KING_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_king_attacks);
+static KNIGHT_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_knight_attacks);
+static PAWN_ATTACKS: Lazy<ColoredU64PerSquare> = Lazy::new(generate_pawn_attacks);
 
 pub fn get_bishop_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
     magic_bit_board::get_bishop_attacks_for(pos, blockers)
+}
+
+pub fn get_king_attacks_for(pos: &impl BoardPos) -> u64 {
+    KING_ATTACKS[pos as &dyn BoardPos]
+}
+
+pub fn get_knight_attacks_for(pos: &impl BoardPos) -> u64 {
+    KNIGHT_ATTACKS[pos as &dyn BoardPos]
+}
+
+pub fn get_pawn_attacks_for(pos: &impl BoardPos, color: &Color) -> u64 {
+    PAWN_ATTACKS[*color][pos as &dyn BoardPos]
 }
 
 pub fn get_queen_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {

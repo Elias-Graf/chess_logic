@@ -1,14 +1,7 @@
 use std::ops::{Index, IndexMut};
 
-use crate::{square::BoardPos, Board, Color};
+use crate::{square::BoardPos, Board, Color, type_alias_default::TypeAliasDefault};
 
-/// Custom default trait.
-///
-/// Same functionality as the [`Default`] trait, but defined in this create. That
-/// way it can be used on type aliases.
-pub trait CustomDefault {
-    fn default() -> Self;
-}
 
 pub const SIZE: u64 = Board::SIZE as u64;
 pub const HEIGHT: u64 = Board::HEIGHT as u64;
@@ -161,7 +154,7 @@ pub fn display(board: u64) -> String {
 
 pub type U64PerSquare = [u64; Board::SIZE];
 
-impl CustomDefault for U64PerSquare {
+impl TypeAliasDefault for U64PerSquare {
     fn default() -> Self {
         [0; Board::SIZE]
     }
@@ -183,7 +176,7 @@ impl IndexMut<&dyn BoardPos> for U64PerSquare {
 
 pub type ColoredU64PerSquare = [U64PerSquare; 2];
 
-impl CustomDefault for ColoredU64PerSquare {
+impl TypeAliasDefault for ColoredU64PerSquare {
     fn default() -> Self {
         [U64PerSquare::default(); 2]
     }
