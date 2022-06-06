@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::{
     bit_board,
-    piece::{DIR_EAST, DIR_NORTH, DIR_OFFSETS, DIR_SOUTH, DIR_WEST, TO_EDGE_OFFSETS},
+    piece::{self, DIR_EAST, DIR_NORTH, DIR_OFFSETS, DIR_SOUTH, DIR_WEST, TO_EDGE_OFFSETS},
     square::{BoardPos, Square},
     Color, Piece,
 };
@@ -244,30 +244,125 @@ impl Board {
         }
     }
 
-    pub fn is_pos_attacked_by(&self, pos_idx: &dyn BoardPos, atk_color: &Color) -> bool {
-        for iter in 0..Board::SIZE {
-            let ins = match self.get(&iter) {
-                Some(i) => i,
-                None => continue,
-            };
+    pub fn is_pos_attacked_by(&self, pos: &dyn BoardPos, atk_color: &Color) -> bool {
+        // Since the attacks are essentially mirrored for both sides, we just generate
+        // the opponent attacks on the square to check. If the attack includes the
+        // position if our piece, we can be attacked, and the reverse is also true.
+        //
+        // Let's say we want to see if a white pawn on E5 can attack the square D6:
+        //
+        // 8   . . . . . . . .
+        // 7   . . . . . . . .
+        // 6   . . . . . . . .
+        // 5   . . . . 1 . . .
+        // 4   . . . . . . . .
+        // 3   . . . . . . . .
+        // 2   . . . . . . . .
+        // 1   . . . . . . . .
+        //
+        //     a b c d e f g h
+        //
+        // We now simply lookup the attacks of the **opponent** on the position we
+        // want to check (pawn attacks of the square D6):
+        //
+        // 8   . . . . . . . .
+        // 7   . . . . . . . .
+        // 6   . . . . . . . .
+        // 5   . . 1 . 1 . . .
+        // 4   . . . . . . . .
+        // 3   . . . . . . . .
+        // 2   . . . . . . . .
+        // 1   . . . . . . . .
+        //
+        //     a b c d e f g h
+        //
+        // We can see that the bit on E5 is set on both boards, thus the square
+        // D6 can be attacked by the white pawn on E5.
 
-            // BUG: Recursive check for `is_pos_attacked_by`.
-            // The king moves check (for castling) if any of the squares involved
-            // in the castling are attacked by the opponent.
-            // The king is thus currently excluded from the check, as it would just
-            // keep going back and forth between the two kings.
-            if ins.piece == Piece::King {
-                continue;
+        let all_pieces = self.black_bishops
+            | self.black_king
+            | self.black_knights
+            | self.black_pawns
+            | self.black_queens
+            | self.black_rooks
+            | self.white_bishops
+            | self.white_king
+            | self.white_knights
+            | self.white_pawns
+            | self.white_queens
+            | self.white_rooks;
+
+        if atk_color == &Color::White {
+            if bit_board::has_set_bits(
+                piece::get_bishop_attacks_for(pos, all_pieces) & self.white_bishops,
+            ) {
+                return true;
             }
-
-            if &ins.color != atk_color {
-                continue;
+        } else {
+            if bit_board::has_set_bits(
+                piece::get_bishop_attacks_for(pos, all_pieces) & self.black_bishops,
+            ) {
+                return true;
             }
+        }
 
-            for (_, hit_idx) in Piece::get_moves_of_piece_at(iter, self) {
-                if pos_idx.idx() == hit_idx as i8 {
-                    return true;
-                }
+        if atk_color == &Color::White {
+            if bit_board::has_set_bits(piece::KNIGHT_ATTACKS[pos] & self.white_knights) {
+                return true;
+            }
+        } else {
+            if bit_board::has_set_bits(piece::KNIGHT_ATTACKS[pos] & self.black_knights) {
+                return true;
+            }
+        }
+
+        if atk_color == &Color::White {
+            if bit_board::has_set_bits(piece::KING_ATTACKS[pos] & self.white_king) {
+                return true;
+            }
+        } else {
+            if bit_board::has_set_bits(piece::KING_ATTACKS[pos] & self.black_king) {
+                return true;
+            }
+        }
+
+        // TODO: if there was a function to get the "opposing pawns", this could
+        // be simplified to:
+        // ```
+        // let opposing = atk_color.opposing();
+        // if bit_board::has_set_bits(piece::PAWN_ATTACKS[opposing][pos] & self.get_pawns(opposing)) {
+        //     return true;
+        // }
+        // ```
+        // alternatively just do:
+        // ```
+        // let opposing_pawns = if atk_color == Color::White { self.black_pawns } else { self.white_pawns };
+        // ```
+        // The different boards could also just be stored in an table. E.g.: `self.pawns[Color::Black]`.
+        if atk_color == &Color::White {
+            if bit_board::has_set_bits(piece::PAWN_ATTACKS[Color::Black][pos] & self.white_pawns) {
+                return true;
+            }
+        } else {
+            if bit_board::has_set_bits(piece::PAWN_ATTACKS[Color::White][pos] & self.black_pawns) {
+                return true;
+            }
+        }
+
+        // The Queen attacks are already covered by checking bishops and rooks,
+        // and not explicitly checked here.
+
+        if atk_color == &Color::White {
+            if bit_board::has_set_bits(
+                piece::get_rook_attacks_for(pos, all_pieces) & self.white_rooks,
+            ) {
+                return true;
+            }
+        } else {
+            if bit_board::has_set_bits(
+                piece::get_rook_attacks_for(pos, all_pieces) & self.black_rooks,
+            ) {
+                return true;
             }
         }
 
@@ -450,7 +545,177 @@ impl PieceInstance {
 
 #[cfg(test)]
 mod tests {
+    use crate::bit_board::U64PerSquare;
+
     use super::*;
+
+    use Square::*;
+
+    #[test]
+    fn is_pos_attacked_not_attacked() {
+        let board = Board::new_empty();
+
+        assert_eq!(board.is_pos_attacked_by(&A8, &Color::Black), false);
+        assert_eq!(board.is_pos_attacked_by(&A8, &Color::White), false);
+    }
+
+    #[test]
+    fn is_pos_attacked_by_bishop_no_blockers() {
+        for color in [Color::Black, Color::White] {
+            let mut board = Board::new_empty();
+            board.set(&F4, color.clone(), Piece::Bishop);
+
+            for pos in [B8, C7, D6, E5, H6, G5, E3, D2, C1, G3, H2] {
+                assert_eq!(board.is_pos_attacked_by(&pos, &color), true, "{:?}", &color);
+            }
+        }
+    }
+
+    #[test]
+    fn is_pos_attacked_by_bishop_blockers() {
+        const ALL_SQUARES_BEHIND: [Square; 3] = [E6, F7, G8];
+
+        for atk_color in &[Color::Black, Color::White] {
+            let mut board = Board::new_empty();
+            board.set(&B3, atk_color.clone(), Piece::Bishop);
+
+            let var_name: &[(Color, Piece, &[Square])] = &[
+                // Opposing blocking pieces
+                (atk_color.opposing(), Piece::Bishop, &ALL_SQUARES_BEHIND),
+                (atk_color.opposing(), Piece::King, &ALL_SQUARES_BEHIND),
+                (atk_color.opposing(), Piece::Knight, &ALL_SQUARES_BEHIND),
+                (atk_color.opposing(), Piece::Pawn, &ALL_SQUARES_BEHIND),
+                (atk_color.opposing(), Piece::Queen, &ALL_SQUARES_BEHIND),
+                (atk_color.opposing(), Piece::Rook, &ALL_SQUARES_BEHIND),
+                // It's a bit more tricky for friendly blocking pieces, since they
+                // may attack themselves.
+                (*atk_color, Piece::Bishop, &[]),
+                (*atk_color, Piece::King, &[F7, G8]),
+                (*atk_color, Piece::Knight, &ALL_SQUARES_BEHIND),
+                (*atk_color, Piece::Pawn, &[F7, G8]),
+                (*atk_color, Piece::Queen, &[]),
+                (*atk_color, Piece::Rook, &ALL_SQUARES_BEHIND),
+            ];
+            for (blocking_color, blocking_piece, blocked_squares) in var_name {
+                let mut board = board.clone();
+                board.set(&D5, *blocking_color, *blocking_piece);
+
+                for pos in *blocked_squares {
+                    assert_eq!(
+                        board.is_pos_attacked_by(pos, &atk_color),
+                        false,
+                        "attacking: {:?}, blocking: {:?} {:?}",
+                        atk_color,
+                        atk_color,
+                        blocking_piece
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn is_pos_attacked_by_king() {
+        for color in [Color::Black, Color::White] {
+            let mut board = Board::new_empty();
+            board.set(&F7, color.clone(), Piece::King);
+
+            for pos in [E8, F8, G8, E7, G7, E6, F6, G6] {
+                assert_eq!(board.is_pos_attacked_by(&pos, &color), true, "{:?}", &color);
+            }
+        }
+    }
+
+    #[test]
+    fn is_pos_attacked_by_knight() {
+        for color in [Color::Black, Color::White] {
+            let mut board = Board::new_empty();
+            board.set(&B4, color.clone(), Piece::Knight);
+
+            for pos in [A6, C6, D5, D3, C2, A2] {
+                assert_eq!(board.is_pos_attacked_by(&pos, &color), true, "{:?}", &color);
+            }
+        }
+    }
+
+    #[test]
+    fn is_pos_attacked_attacked_by_white_pawn() {
+        let mut board = Board::new_empty();
+        board.set(&E5, Color::White, Piece::Pawn);
+
+        assert_eq!(board.is_pos_attacked_by(&D6, &Color::White), true);
+        assert_eq!(board.is_pos_attacked_by(&F6, &Color::White), true);
+    }
+
+    #[test]
+    fn is_pos_attacked_by_black_pawn() {
+        let mut board = Board::new_empty();
+        board.set(&C6, Color::Black, Piece::Pawn);
+
+        assert_eq!(board.is_pos_attacked_by(&B5, &Color::Black), true);
+        assert_eq!(board.is_pos_attacked_by(&D5, &Color::Black), true);
+    }
+
+    // The queen checks are covered by the bishop and rook checks.
+    // So they are not checked explicitly here.
+
+    #[test]
+    fn is_pos_attacked_by_rook_no_blockers() {
+        for color in [Color::Black, Color::White] {
+            let mut board = Board::new_empty();
+            board.set(&G7, color.clone(), Piece::Rook);
+
+            for pos in [A7, B7, C7, D7, E7, F7, H7, G8, G6, G5, G4, G3, G2, G1] {
+                assert_eq!(board.is_pos_attacked_by(&pos, &color), true, "{:?}", &color);
+            }
+        }
+    }
+
+    #[test]
+    fn is_pos_attacked_by_white_rook() {
+        const ALL_SQUARES_BEHIND: [Square; 4] = [D5, D6, D7, D8];
+
+        for atk_color in &[Color::Black, Color::White] {
+            let mut board = Board::new_empty();
+            board.set(&D2, atk_color.clone(), Piece::Rook);
+
+            let var_name: &[(Color, Piece, &[Square])] = &[
+                // Opposing blocking pieces
+                (atk_color.opposing(), Piece::Bishop, &ALL_SQUARES_BEHIND),
+                (atk_color.opposing(), Piece::King, &ALL_SQUARES_BEHIND),
+                (atk_color.opposing(), Piece::Knight, &ALL_SQUARES_BEHIND),
+                (atk_color.opposing(), Piece::Pawn, &ALL_SQUARES_BEHIND),
+                (atk_color.opposing(), Piece::Queen, &ALL_SQUARES_BEHIND),
+                (atk_color.opposing(), Piece::Rook, &ALL_SQUARES_BEHIND),
+                // It's a bit more tricky for friendly blocking pieces, since they
+                // may attack themselves.
+                (*atk_color, Piece::Bishop, &ALL_SQUARES_BEHIND),
+                (*atk_color, Piece::King, &[D6, D7, D8]),
+                (*atk_color, Piece::Knight, &ALL_SQUARES_BEHIND),
+                (*atk_color, Piece::Pawn, &ALL_SQUARES_BEHIND),
+                (*atk_color, Piece::Queen, &[]),
+                (*atk_color, Piece::Rook, &[]),
+            ];
+            for (blocking_color, blocking_piece, blocked_squares) in var_name {
+                let mut board = board.clone();
+                board.set(&D4, *blocking_color, *blocking_piece);
+
+                for pos in *blocked_squares {
+                    assert_eq!(
+                        board.is_pos_attacked_by(pos, &atk_color),
+                        false,
+                        "attacking: {:?}, blocking: {:?} {:?}",
+                        atk_color,
+                        atk_color,
+                        blocking_piece
+                    );
+                }
+            }
+        }
+    }
+
+    // TODO: move or remove pre bit board stuff
+    // pre bit board stuff below
 
     #[test]
     fn en_passant_removes_the_other_piece_you() {

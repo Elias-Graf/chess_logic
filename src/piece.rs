@@ -35,9 +35,9 @@ const NOT_FILE_H: u64 = 9187201950435737471;
 pub static ROOK_RELEVANT_MOVE_MASK: Lazy<U64PerSquare> =
     Lazy::new(generate_rook_relevant_move_mask);
 
-static KING_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_king_attacks);
-static KNIGHT_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_knight_attacks);
-static PAWN_ATTACKS: Lazy<ColoredU64PerSquare> = Lazy::new(generate_pawn_attacks);
+pub static KING_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_king_attacks);
+pub static KNIGHT_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_knight_attacks);
+pub static PAWN_ATTACKS: Lazy<ColoredU64PerSquare> = Lazy::new(generate_pawn_attacks);
 
 pub fn get_bishop_attacks_for(pos: &dyn BoardPos, blockers: u64) -> u64 {
     magic_bit_board::get_bishop_attacks_for(pos, blockers)
@@ -389,7 +389,7 @@ impl Piece {
         let king_ins = board
             .get(&king_idx)
             .unwrap_or_else(|| panic!("castle check failed, no piece at index '{}'", king_idx));
-        let atk_color = king_ins.color.get_opposing();
+        let atk_color = king_ins.color.opposing();
 
         let push_castle_move_if_applicable =
             &mut |can_castle: bool, poses_to_validate: &[usize], move_to_add: usize| {

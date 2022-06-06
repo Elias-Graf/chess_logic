@@ -12,14 +12,14 @@ mod testing_utils;
 pub use board::Board;
 pub use piece::Piece;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Color {
     Black,
     White,
 }
 
 impl Color {
-    pub fn get_opposing(&self) -> Color {
+    pub fn opposing(&self) -> Color {
         match self {
             Color::Black => Color::White,
             Color::White => Color::Black,
