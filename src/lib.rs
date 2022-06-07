@@ -12,6 +12,7 @@ mod testing_utils;
 
 pub use board::Board;
 pub use piece::Piece;
+pub use square::Square;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Color {

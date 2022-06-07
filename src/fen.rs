@@ -90,7 +90,7 @@ impl Fen for Board {
 
             let mut empty_count = 0;
             for idx in 0..Board::SIZE {
-                match board.get(&idx) {
+                match board.get(idx) {
                     Some(ins) => {
                         if empty_count > 0 {
                             val.push_str(&empty_count.to_string());
@@ -200,7 +200,7 @@ impl Fen for Board {
 
                 let ins: PieceInstance = Fen::from_fen(&c.to_string())?;
 
-                board.set(&idx, ins.color, ins.piece);
+                board.set(idx, ins.color, ins.piece);
                 idx += 1;
             }
 
@@ -267,25 +267,27 @@ mod tests {
 
     #[test]
     fn not_starting_formation() {
+        use Square::*;
+
         let truth = "3B4/k6P/4N1p1/K7/1P3PBp/5P1r/R3P1Pp/8 w - - 0 0";
 
         let mut board = Board::new_empty();
-        board.set(&Square::D8, Color::White, Piece::Bishop);
-        board.set(&Square::A7, Color::Black, Piece::King);
-        board.set(&Square::H7, Color::White, Piece::Pawn);
-        board.set(&Square::E6, Color::White, Piece::Knight);
-        board.set(&Square::G6, Color::Black, Piece::Pawn);
-        board.set(&Square::A5, Color::White, Piece::King);
-        board.set(&Square::B4, Color::White, Piece::Pawn);
-        board.set(&Square::F4, Color::White, Piece::Pawn);
-        board.set(&Square::G4, Color::White, Piece::Bishop);
-        board.set(&Square::H4, Color::Black, Piece::Pawn);
-        board.set(&Square::F3, Color::White, Piece::Pawn);
-        board.set(&Square::H3, Color::Black, Piece::Rook);
-        board.set(&Square::A2, Color::White, Piece::Rook);
-        board.set(&Square::E2, Color::White, Piece::Pawn);
-        board.set(&Square::G2, Color::White, Piece::Pawn);
-        board.set(&Square::H2, Color::Black, Piece::Pawn);
+        board.set(D8, Color::White, Piece::Bishop);
+        board.set(A7, Color::Black, Piece::King);
+        board.set(H7, Color::White, Piece::Pawn);
+        board.set(E6, Color::White, Piece::Knight);
+        board.set(G6, Color::Black, Piece::Pawn);
+        board.set(A5, Color::White, Piece::King);
+        board.set(B4, Color::White, Piece::Pawn);
+        board.set(F4, Color::White, Piece::Pawn);
+        board.set(G4, Color::White, Piece::Bishop);
+        board.set(H4, Color::Black, Piece::Pawn);
+        board.set(F3, Color::White, Piece::Pawn);
+        board.set(H3, Color::Black, Piece::Rook);
+        board.set(A2, Color::White, Piece::Rook);
+        board.set(E2, Color::White, Piece::Pawn);
+        board.set(G2, Color::White, Piece::Pawn);
+        board.set(H2, Color::Black, Piece::Pawn);
 
         assert_eq!(board.get_fen(), truth);
         assert_eq!(board, Board::from_fen(truth).unwrap());

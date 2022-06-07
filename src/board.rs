@@ -6,7 +6,7 @@ use std::{
 use crate::{
     bit_board,
     piece::{self, DIR_EAST, DIR_NORTH, DIR_OFFSETS, DIR_SOUTH, DIR_WEST, TO_EDGE_OFFSETS},
-    square::{BoardPos, Square},
+    square::{Square, _BoardPos},
     Color, Piece,
 };
 
@@ -54,6 +54,11 @@ impl IndexMut<Color> for BitBoardPerColor {
     }
 }
 
+
+pub trait BoardPos: Into<usize> + Copy {}
+impl BoardPos for usize {}
+impl BoardPos for Square {}
+
 // TODO: Consider refactoring to use `i8` everywhere and save a bunch of casting.
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -80,6 +85,24 @@ impl Board {
     pub const WIDTH: usize = 8;
     pub const SIZE: usize = Self::HEIGHT * Self::WIDTH;
 
+    /// Combines all bit boards into a single one.
+    ///
+    /// This is achieved using the `|` (bitwise or) operator.
+    pub fn all_pieces(&self) -> u64 {
+        self.bishops[Color::Black]
+            | self.king[Color::Black]
+            | self.knights[Color::Black]
+            | self.pawns[Color::Black]
+            | self.queens[Color::Black]
+            | self.rooks[Color::Black]
+            | self.bishops[Color::White]
+            | self.king[Color::White]
+            | self.knights[Color::White]
+            | self.pawns[Color::White]
+            | self.queens[Color::White]
+            | self.rooks[Color::White]
+    }
+
     fn check_and_add_en_passant_eligibility(
         &mut self,
         src_ins: &PieceInstance,
@@ -102,11 +125,29 @@ impl Board {
             (hit_idx as i8 + DIR_OFFSETS[DIR_WEST]) as usize,
             (hit_idx as i8 + DIR_OFFSETS[DIR_EAST]) as usize,
         ] {
-            if let Some(ins) = self.get(&hit_pos) {
+            if let Some(ins) = self.get(hit_pos) {
                 if ins.color != src_ins.color {
                     self.piece_eligible_for_en_passant.push((hit_pos, hit_idx));
                 }
             }
+        }
+    }
+
+    /// Clear (remove) a piece on the specified location
+    ///
+    /// This function is not very performant and more of a pretty interface. If
+    /// speed is important, one might consider accessing the piece fields (bit boards)
+    /// directly.
+    pub fn clear(&mut self, pos: impl BoardPos) {
+        let i = pos.into();
+
+        for color in [Color::Black, Color::White] {
+            bit_board::clear_bit(&mut self.bishops[color], i);
+            bit_board::clear_bit(&mut self.king[color], i);
+            bit_board::clear_bit(&mut self.knights[color], i);
+            bit_board::clear_bit(&mut self.pawns[color], i);
+            bit_board::clear_bit(&mut self.queens[color], i);
+            bit_board::clear_bit(&mut self.rooks[color], i);
         }
     }
 
@@ -132,7 +173,7 @@ impl Board {
         let rook_src_idx = (src_idx as i8
             + (TO_EDGE_OFFSETS[src_idx][king_move_dir] as i8) * DIR_OFFSETS[king_move_dir])
             as usize;
-        let rook_ins = self.get(&rook_src_idx);
+        let rook_ins = self.get(rook_src_idx);
         let rook_des_idx = (hit_idx as i8 - DIR_OFFSETS[king_move_dir]) as usize;
 
         self.set_by_idx(rook_src_idx, None);
@@ -140,7 +181,7 @@ impl Board {
     }
 
     fn check_and_execute_en_passant(&mut self, src_ins: &PieceInstance, hit_idx: usize) {
-        if matches!(src_ins.piece, Piece::Pawn) && matches!(self.get(&hit_idx), None) {
+        if matches!(src_ins.piece, Piece::Pawn) && matches!(self.get(hit_idx), None) {
             let idx_behind_hit =
                 ((hit_idx as i8) - DIR_OFFSETS[Self::get_attack_dir_of(&src_ins.color)]) as usize;
 
@@ -162,7 +203,7 @@ impl Board {
         let src_idx = mv.src_idx();
         let dst_idx = mv.dst_idx();
 
-        let src_ins = match self.get(&(src_idx as usize)) {
+        let src_ins = match self.get(src_idx as usize) {
             Some(i) => i,
             None => panic!(
                 "cannot execute move '{:?}' because there is no piece at the source index",
@@ -209,8 +250,8 @@ impl Board {
     /// This function is not very performant and more of a pretty interface. If
     /// speed is important, one might consider accessing the piece fields (bit boards)
     /// directly.
-    pub fn get(&self, idx: &impl BoardPos) -> Option<PieceInstance> {
-        let i = idx.idx() as u64;
+    pub fn get(&self, pos: impl BoardPos) -> Option<PieceInstance> {
+        let i = pos.into();
 
         for color in [Color::Black, Color::White] {
             if bit_board::is_set(self.bishops[color], i) {
@@ -245,7 +286,7 @@ impl Board {
         }
     }
 
-    pub fn is_pos_attacked_by(&self, pos: &impl BoardPos, atk_color: &Color) -> bool {
+    pub fn is_pos_attacked_by(&self, pos: impl BoardPos, atk_color: &Color) -> bool {
         // Since the attacks are essentially mirrored for both sides, we just generate
         // the opponent attacks on the square to check. If the attack includes the
         // position if our piece, we can be attacked, and the reverse is also true.
@@ -280,18 +321,7 @@ impl Board {
         // We can see that the bit on E5 is set on both boards, thus the square
         // D6 can be attacked by the white pawn on E5.
 
-        let all_pieces = self.bishops[Color::Black]
-            | self.king[Color::Black]
-            | self.knights[Color::Black]
-            | self.pawns[Color::Black]
-            | self.queens[Color::Black]
-            | self.rooks[Color::Black]
-            | self.bishops[Color::White]
-            | self.king[Color::White]
-            | self.knights[Color::White]
-            | self.pawns[Color::White]
-            | self.queens[Color::White]
-            | self.rooks[Color::White];
+        let all_pieces = self.all_pieces();
 
         if bit_board::has_set_bits(
             piece::get_bishop_attacks_for(pos, all_pieces) & self.bishops[*atk_color],
@@ -414,7 +444,7 @@ impl Board {
             .promote_idx
             .expect("cannot promote as no outstanding promotion was detected");
 
-        let ins = match self.get(&idx) {
+        let ins = match self.get(idx) {
             Some(i) => i.clone(),
             None => panic!("no piece to promote at '{}'", idx),
         };
@@ -435,34 +465,30 @@ impl Board {
         self.piece_eligible_for_en_passant.clear()
     }
 
-    pub fn set(&mut self, idx: &impl BoardPos, color: Color, piece: Piece) {
-        self.set_by_idx(idx.idx() as usize, Some(PieceInstance::new(color, piece)));
+    /// Set (add) a piece on the specified location
+    ///
+    /// This function is not very performant and more of a pretty interface. If
+    /// speed is important, one might consider accessing the piece fields (bit boards)
+    /// directly.
+    pub fn set(&mut self, pos: impl BoardPos, color: Color, piece: Piece) {
+        let i = pos.into();
+
+        match piece {
+            Piece::Bishop => bit_board::set_bit(&mut self.bishops[color], i),
+            Piece::King => bit_board::set_bit(&mut self.king[color], i),
+            Piece::Knight => bit_board::set_bit(&mut self.knights[color], i),
+            Piece::Pawn => bit_board::set_bit(&mut self.pawns[color], i),
+            Piece::Queen => bit_board::set_bit(&mut self.queens[color], i),
+            Piece::Rook => bit_board::set_bit(&mut self.rooks[color], i),
+        }
     }
 
-    #[deprecated(note = "simply use `set` instead")]
-    pub fn set_by_idx(&mut self, idx: usize, pos: Option<PieceInstance>) {
+    #[deprecated(note = "use `set` instead")]
+    pub fn set_by_idx(&mut self, i: usize, pos: Option<PieceInstance>) {
         if let Some(PieceInstance { color, piece }) = pos {
-            let i = idx as u64;
-
-            match piece {
-                Piece::Bishop => bit_board::set_bit(&mut self.bishops[color], i),
-                Piece::King => bit_board::set_bit(&mut self.king[color], i),
-                Piece::Knight => bit_board::set_bit(&mut self.knights[color], i),
-                Piece::Pawn => bit_board::set_bit(&mut self.pawns[color], i),
-                Piece::Queen => bit_board::set_bit(&mut self.queens[color], i),
-                Piece::Rook => bit_board::set_bit(&mut self.rooks[color], i),
-            }
+            self.set(i, color, piece);
         } else {
-            let i = idx as u64;
-
-            for color in [Color::Black, Color::White] {
-                bit_board::clear_bit(&mut self.bishops[color], i);
-                bit_board::clear_bit(&mut self.king[color], i);
-                bit_board::clear_bit(&mut self.knights[color], i);
-                bit_board::clear_bit(&mut self.pawns[color], i);
-                bit_board::clear_bit(&mut self.queens[color], i);
-                bit_board::clear_bit(&mut self.rooks[color], i);
-            }
+            self.clear(i);
         }
     }
 }
@@ -489,18 +515,18 @@ mod tests {
     fn is_pos_attacked_not_attacked() {
         let board = Board::new_empty();
 
-        assert_eq!(board.is_pos_attacked_by(&A8, &Color::Black), false);
-        assert_eq!(board.is_pos_attacked_by(&A8, &Color::White), false);
+        assert_eq!(board.is_pos_attacked_by(A8, &Color::Black), false);
+        assert_eq!(board.is_pos_attacked_by(A8, &Color::White), false);
     }
 
     #[test]
     fn is_pos_attacked_by_bishop_no_blockers() {
         for color in [Color::Black, Color::White] {
             let mut board = Board::new_empty();
-            board.set(&F4, color.clone(), Piece::Bishop);
+            board.set(F4, color.clone(), Piece::Bishop);
 
             for pos in [B8, C7, D6, E5, H6, G5, E3, D2, C1, G3, H2] {
-                assert_eq!(board.is_pos_attacked_by(&pos, &color), true, "{:?}", &color);
+                assert_eq!(board.is_pos_attacked_by(pos, &color), true, "{:?}", &color);
             }
         }
     }
@@ -511,9 +537,9 @@ mod tests {
 
         for atk_color in &[Color::Black, Color::White] {
             let mut board = Board::new_empty();
-            board.set(&B3, atk_color.clone(), Piece::Bishop);
+            board.set(B3, atk_color.clone(), Piece::Bishop);
 
-            let var_name: &[(Color, Piece, &[Square])] = &[
+            let var_name: [(Color, Piece, &[Square]); 12] = [
                 // Opposing blocking pieces
                 (atk_color.opposing(), Piece::Bishop, &ALL_SQUARES_BEHIND),
                 (atk_color.opposing(), Piece::King, &ALL_SQUARES_BEHIND),
@@ -532,11 +558,11 @@ mod tests {
             ];
             for (blocking_color, blocking_piece, blocked_squares) in var_name {
                 let mut board = board.clone();
-                board.set(&D5, *blocking_color, *blocking_piece);
+                board.set(D5, blocking_color, blocking_piece);
 
-                for pos in *blocked_squares {
+                for pos in blocked_squares {
                     assert_eq!(
-                        board.is_pos_attacked_by(pos, &atk_color),
+                        board.is_pos_attacked_by(*pos, &atk_color),
                         false,
                         "attacking: {:?}, blocking: {:?} {:?}",
                         atk_color,
@@ -552,10 +578,10 @@ mod tests {
     fn is_pos_attacked_by_king() {
         for color in [Color::Black, Color::White] {
             let mut board = Board::new_empty();
-            board.set(&F7, color.clone(), Piece::King);
+            board.set(F7, color.clone(), Piece::King);
 
             for pos in [E8, F8, G8, E7, G7, E6, F6, G6] {
-                assert_eq!(board.is_pos_attacked_by(&pos, &color), true, "{:?}", &color);
+                assert_eq!(board.is_pos_attacked_by(pos, &color), true, "{:?}", &color);
             }
         }
     }
@@ -564,10 +590,10 @@ mod tests {
     fn is_pos_attacked_by_knight() {
         for color in [Color::Black, Color::White] {
             let mut board = Board::new_empty();
-            board.set(&B4, color.clone(), Piece::Knight);
+            board.set(B4, color.clone(), Piece::Knight);
 
             for pos in [A6, C6, D5, D3, C2, A2] {
-                assert_eq!(board.is_pos_attacked_by(&pos, &color), true, "{:?}", &color);
+                assert_eq!(board.is_pos_attacked_by(pos, &color), true, "{:?}", &color);
             }
         }
     }
@@ -575,19 +601,19 @@ mod tests {
     #[test]
     fn is_pos_attacked_attacked_by_white_pawn() {
         let mut board = Board::new_empty();
-        board.set(&E5, Color::White, Piece::Pawn);
+        board.set(E5, Color::White, Piece::Pawn);
 
-        assert_eq!(board.is_pos_attacked_by(&D6, &Color::White), true);
-        assert_eq!(board.is_pos_attacked_by(&F6, &Color::White), true);
+        assert_eq!(board.is_pos_attacked_by(D6, &Color::White), true);
+        assert_eq!(board.is_pos_attacked_by(F6, &Color::White), true);
     }
 
     #[test]
     fn is_pos_attacked_by_black_pawn() {
         let mut board = Board::new_empty();
-        board.set(&C6, Color::Black, Piece::Pawn);
+        board.set(C6, Color::Black, Piece::Pawn);
 
-        assert_eq!(board.is_pos_attacked_by(&B5, &Color::Black), true);
-        assert_eq!(board.is_pos_attacked_by(&D5, &Color::Black), true);
+        assert_eq!(board.is_pos_attacked_by(B5, &Color::Black), true);
+        assert_eq!(board.is_pos_attacked_by(D5, &Color::Black), true);
     }
 
     // The queen checks are covered by the bishop and rook checks.
@@ -597,10 +623,10 @@ mod tests {
     fn is_pos_attacked_by_rook_no_blockers() {
         for color in [Color::Black, Color::White] {
             let mut board = Board::new_empty();
-            board.set(&G7, color.clone(), Piece::Rook);
+            board.set(G7, color.clone(), Piece::Rook);
 
             for pos in [A7, B7, C7, D7, E7, F7, H7, G8, G6, G5, G4, G3, G2, G1] {
-                assert_eq!(board.is_pos_attacked_by(&pos, &color), true, "{:?}", &color);
+                assert_eq!(board.is_pos_attacked_by(pos, &color), true, "{:?}", &color);
             }
         }
     }
@@ -611,9 +637,9 @@ mod tests {
 
         for atk_color in &[Color::Black, Color::White] {
             let mut board = Board::new_empty();
-            board.set(&D2, atk_color.clone(), Piece::Rook);
+            board.set(D2, atk_color.clone(), Piece::Rook);
 
-            let var_name: &[(Color, Piece, &[Square])] = &[
+            let var_name: [(Color, Piece, &[Square]); 12] = [
                 // Opposing blocking pieces
                 (atk_color.opposing(), Piece::Bishop, &ALL_SQUARES_BEHIND),
                 (atk_color.opposing(), Piece::King, &ALL_SQUARES_BEHIND),
@@ -632,11 +658,11 @@ mod tests {
             ];
             for (blocking_color, blocking_piece, blocked_squares) in var_name {
                 let mut board = board.clone();
-                board.set(&D4, *blocking_color, *blocking_piece);
+                board.set(D4, blocking_color, blocking_piece);
 
-                for pos in *blocked_squares {
+                for pos in blocked_squares {
                     assert_eq!(
-                        board.is_pos_attacked_by(pos, &atk_color),
+                        board.is_pos_attacked_by(*pos, &atk_color),
                         false,
                         "attacking: {:?}, blocking: {:?} {:?}",
                         atk_color,
@@ -661,7 +687,7 @@ mod tests {
         board.do_move(&(25, 16));
 
         assert!(
-            matches!(board.get(&Square::A5), None),
+            matches!(board.get(Square::A5), None),
             "piece was not removed {}",
             board
         );
@@ -677,7 +703,7 @@ mod tests {
         board.do_move(&(33, 40));
 
         assert!(
-            matches!(board.get(&Square::A4), None),
+            matches!(board.get(Square::A4), None),
             "piece was not removed {}",
             board
         );
@@ -692,7 +718,7 @@ mod tests {
         board.do_move(&(33, 40));
 
         assert!(
-            !matches!(board.get(&Square::A4), None),
+            !matches!(board.get(Square::A4), None),
             "piece was removed {}",
             board
         );
@@ -708,7 +734,7 @@ mod tests {
         board.do_move(&(34, 41));
 
         assert!(
-            !matches!(board.get(&Square::B4), None),
+            !matches!(board.get(Square::B4), None),
             "piece was removed {}",
             board
         );
@@ -721,14 +747,14 @@ mod tests {
         board.do_move(&(60, 58));
 
         assert_eq!(
-            board.get(&Square::A1).as_ref(),
+            board.get(Square::A1).as_ref(),
             None,
             "rook was not removed {}",
             board,
         );
 
         assert_eq!(
-            board.get(&Square::D1).as_ref(),
+            board.get(Square::D1).as_ref(),
             ins_white(Piece::Rook).as_ref(),
             "rook was not moved {}",
             board
@@ -742,14 +768,14 @@ mod tests {
         board.do_move(&(60, 62));
 
         assert_eq!(
-            board.get(&Square::H1).as_ref(),
+            board.get(Square::H1).as_ref(),
             None,
             "rook was not removed {}",
             board,
         );
 
         assert_eq!(
-            board.get(&Square::F1).as_ref(),
+            board.get(Square::F1).as_ref(),
             ins_white(Piece::Rook).as_ref(),
             "rook was not moved {}",
             board,
@@ -765,14 +791,14 @@ mod tests {
         board.do_move(&(4, 2));
 
         assert_eq!(
-            board.get(&Square::A8).as_ref(),
+            board.get(Square::A8).as_ref(),
             None,
             "rook was not removed {}",
             board,
         );
 
         assert_eq!(
-            board.get(&Square::D8).as_ref(),
+            board.get(Square::D8).as_ref(),
             ins_black(Piece::Rook).as_ref(),
             "rook was not moved {}",
             board,
@@ -788,14 +814,14 @@ mod tests {
         board.do_move(&(4, 6));
 
         assert_eq!(
-            board.get(&Square::A7).as_ref(),
+            board.get(Square::A7).as_ref(),
             None,
             "rook was not removed {}",
             board,
         );
 
         assert_eq!(
-            board.get(&Square::F8).as_ref(),
+            board.get(Square::F8).as_ref(),
             ins_black(Piece::Rook).as_ref(),
             "rook was not moved {}",
             board
@@ -810,7 +836,7 @@ mod tests {
         board.do_move(&(60, 58));
 
         assert_eq!(
-            board.get(&Square::H1).as_ref(),
+            board.get(Square::H1).as_ref(),
             ins_white(Piece::Rook).as_ref(),
             "east rook was moved {}",
             board,
@@ -825,7 +851,7 @@ mod tests {
         board.do_move(&(60, 62));
 
         assert_eq!(
-            board.get(&Square::A1).as_ref(),
+            board.get(Square::A1).as_ref(),
             ins_white(Piece::Rook).as_ref(),
             "west rook was moved {}",
             board,
@@ -841,7 +867,7 @@ mod tests {
         board.do_move(&(60, 59));
 
         assert_eq!(
-            board.get(&Square::A1).as_ref(),
+            board.get(Square::A1).as_ref(),
             ins_white(Piece::Rook).as_ref(),
             "rook was removed",
         );
@@ -856,7 +882,7 @@ mod tests {
         board.do_move(&(60, 58));
 
         assert_eq!(
-            board.get(&Square::A1).as_ref(),
+            board.get(Square::A1).as_ref(),
             ins_white(Piece::Rook).as_ref(),
             "rook was replaced {}",
             board

@@ -7,66 +7,50 @@ pub const HEIGHT: u64 = Board::HEIGHT as u64;
 pub const WIDTH: u64 = Board::WIDTH as u64;
 
 /// # Usage
-/// ```ignore
-/// board >> NORTH
-/// ```
-pub const NORTH: u64 = 8;
+/// `board >> NORTH` or `idx - NORTH`
+pub const NORTH: usize = 8;
 /// # Usage
-/// ```ignore
-/// board >> NO_EA
-/// ```
-pub const NO_EA: u64 = 7;
+/// `board >> NO_EA` or `idx - NO_EA`
+pub const NO_EA: usize = 7;
 /// # Usage
-/// ```ignore
-/// board << EAST
-/// ```
-pub const EAST: u64 = 1;
+/// `board << EAST` or `idx + EAST`
+pub const EAST: usize = 1;
 /// # Usage
-/// ```ignore
-/// board << SO_EA
-/// ```
-pub const SO_EA: u64 = 9;
+/// `board << SO_EA` or `idx + SO_EA`
+pub const SO_EA: usize = 9;
 /// # Usage
-/// ```ignore
-/// board << SOUTH
-/// ```
-pub const SOUTH: u64 = 8;
+/// `board << SOUTH` or `idx + SOUTH`
+pub const SOUTH: usize = 8;
 /// # Usage
-/// ```ignore
-/// board << SO_WE
-/// ```
-pub const SO_WE: u64 = 7;
+/// `board << SO_WE` or `idx + SO_WE`
+pub const SO_WE: usize = 7;
 /// # Usage
-/// ```ignore
-/// board >> WEST
-/// ```
-pub const WEST: u64 = 1;
+/// `board >> WEST` or `idx - WEST`
+pub const WEST: usize = 1;
 /// # Usage
-/// ```ignore
-/// board >> NO_WE
-/// ```
-pub const NO_WE: u64 = 9;
+/// `board >> NO_WE` or `idx - NO_WE`
+pub const NO_WE: usize = 9;
 
 /// Created a new board with a `1` at the specified index.
-pub fn with_bit_at(i: u64) -> u64 {
+pub fn with_bit_at(i: usize) -> u64 {
     let mut board = 0;
     set_bit(&mut board, i);
     board
 }
 
-pub fn is_set(board: u64, i: u64) -> bool {
+pub fn is_set(board: u64, i: usize) -> bool {
     get_bit(board, i) > 0
 }
 
-pub fn get_bit(board: u64, i: u64) -> u64 {
+pub fn get_bit(board: u64, i: usize) -> u64 {
     board & (1 << i)
 }
 
-pub fn set_bit(board: &mut u64, i: u64) {
+pub fn set_bit(board: &mut u64, i: usize) {
     *board |= 1 << i
 }
 
-pub fn clear_bit(board: &mut u64, i: u64) {
+pub fn clear_bit(board: &mut u64, i: usize) {
     *board &= !(1 << i)
 }
 
@@ -79,7 +63,7 @@ pub fn has_set_bits(board: u64) -> bool {
 }
 
 /// Calculates the number of bits set to `1`.
-pub fn count_set_bits(board: u64) -> u64 {
+pub fn count_set_bits(board: u64) -> usize {
     let mut board = board;
     let mut count = 0;
 
@@ -96,7 +80,7 @@ pub fn count_set_bits(board: u64) -> u64 {
 ///
 /// This is also known as the least significant set bit. If no bits are set,
 /// the function will return `None`.
-pub fn get_first_set_bit(board: u64) -> Option<u64> {
+pub fn get_first_set_bit(board: u64) -> Option<usize> {
     if board == 0 {
         return None;
     }
@@ -135,7 +119,7 @@ pub fn display(board: u64) -> String {
             val += &format!("{}  ", Board::HEIGHT - rank);
         }
 
-        val += match get_bit(board, i as u64) {
+        val += match get_bit(board, i) {
             0 => " .",
             _ => " 1",
         };

@@ -12,14 +12,14 @@
 //! simply think "randomly generated number" that can be used to generate an index
 //! in the move lookup table.
 
-use std::collections::HashMap;
+use std::{cmp::min, collections::HashMap};
 
 use once_cell::sync::Lazy;
 
 use crate::{
     bit_board::{self, U64PerSquare},
     piece,
-    square::BoardPos,
+    square::_BoardPos,
     type_alias_default::TypeAliasDefault,
     Board, Piece,
 };
@@ -28,26 +28,24 @@ use crate::{
 ///
 /// Abstracts away all the table lookups maths. Read the module-level documentation
 /// for more information.
-pub fn get_bishop_attacks_for(pos: &impl BoardPos, blockers: u64) -> u64 {
-    let idx = pos.idx();
+pub fn get_bishop_attacks_for(idx: usize, blockers: u64) -> u64 {
     let magic_index = magic_index_of(
         BISHOP_MAGIC_NUMBERS[idx],
         blockers,
         RELEVANT_BISHOP_MOVES_PER_SQUARE[idx],
-        NUMBER_OF_RELEVANT_BISHOP_MOVES_PER_SQUARE[idx],
+        NUMBER_OF_RELEVANT_BISHOP_MOVES_PER_SQUARE[idx] as usize,
     );
 
     ALL_POSSIBLE_BISHOP_ATTACKS[magic_index][idx]
 }
 
 /// Same as [`get_bishop_attacks_for`], but for rooks.
-pub fn get_rook_attacks_for(pos: &impl BoardPos, blockers: u64) -> u64 {
-    let idx = pos.idx();
+pub fn get_rook_attacks_for(idx: usize, blockers: u64) -> u64 {
     let magic_index = magic_index_of(
         ROOK_MAGIC_NUMBERS[idx],
         blockers,
         RELEVANT_ROOK_MOVES_PER_SQUARE[idx],
-        NUMBER_OF_RELEVANT_ROOK_MOVES_PER_SQUARE[idx],
+        NUMBER_OF_RELEVANT_ROOK_MOVES_PER_SQUARE[idx] as usize,
     );
 
     ALL_POSSIBLE_ROOK_ATTACKS[magic_index][idx]
@@ -60,8 +58,8 @@ mod tests {
     #[test]
     fn bishop_compare_to_slow_to_generate_source_of_truth() {
         for i in 0..Board::SIZE {
-            let truth = piece::calculate_bishop_attacks_for(&i, 0);
-            let lookup_result = get_bishop_attacks_for(&i, 0);
+            let truth = piece::calculate_bishop_attacks_for(i, 0);
+            let lookup_result = get_bishop_attacks_for(i, 0);
 
             assert_eq!(truth, lookup_result);
         }
@@ -70,8 +68,8 @@ mod tests {
     #[test]
     fn rook_compare_to_slow_to_generate_source_of_truth() {
         for i in 0..Board::SIZE {
-            let truth = piece::calculate_rook_attacks_for(&i, 0);
-            let lookup_result = get_rook_attacks_for(&i, 0);
+            let truth = piece::calculate_rook_attacks_for(i, 0);
+            let lookup_result = get_rook_attacks_for(i, 0);
 
             assert_eq!(truth, lookup_result);
         }
@@ -230,6 +228,8 @@ static RELEVANT_BISHOP_MOVES_PER_SQUARE: Lazy<U64PerSquare> =
 static RELEVANT_ROOK_MOVES_PER_SQUARE: Lazy<U64PerSquare> =
     Lazy::new(generate_relevant_rook_moves_per_square);
 
+// TODO: potentially convert to [usize; 64], and remove casts where this constant
+// is used.
 /// The number of relevant moves (see [`generate_relevant_bishop_moves_per_square`]) that are
 /// possible on each square.
 #[rustfmt::skip]
@@ -243,6 +243,8 @@ const NUMBER_OF_RELEVANT_BISHOP_MOVES_PER_SQUARE: U64PerSquare = [
     5, 5, 5, 5, 5, 5, 5, 5,
     6, 5, 5, 5, 5, 5, 5, 6,
 ];
+// TODO: potentially convert to [usize; 64], and remove casts where this constant
+// is used.
 /// Same as [`NUMBER_OF_RELEVANT_BISHOP_MOVES_PER_SQUARE`], but for rooks
 #[rustfmt::skip]
 const NUMBER_OF_RELEVANT_ROOK_MOVES_PER_SQUARE: [u64; 64] = [
@@ -270,7 +272,7 @@ fn generate_bishop_magic_numbers() -> U64PerSquare {
     let mut numbers = U64PerSquare::default();
 
     for i in 0..Board::SIZE {
-        numbers[i] = generate_magic_number_for(&i, Piece::Bishop);
+        numbers[i] = generate_magic_number_for(i, Piece::Bishop);
     }
 
     numbers
@@ -282,7 +284,7 @@ fn generate_rook_magic_numbers() -> U64PerSquare {
     let mut numbers = U64PerSquare::default();
 
     for i in 0..Board::SIZE {
-        numbers[i] = generate_magic_number_for(&i, Piece::Rook);
+        numbers[i] = generate_magic_number_for(i, Piece::Rook);
     }
 
     numbers
@@ -315,30 +317,28 @@ fn generate_rook_magic_numbers() -> U64PerSquare {
 fn generate_relevant_bishop_moves_per_square() -> U64PerSquare {
     let mut moves = U64PerSquare::default();
 
-    for i in 0..bit_board::SIZE {
-        let i_usize = i as usize;
-
+    for i in 0..Board::SIZE {
         let board = bit_board::with_bit_at(i);
 
-        let file = i % bit_board::HEIGHT;
-        let rank = i / bit_board::HEIGHT;
+        let file = i % Board::HEIGHT;
+        let rank = i / Board::HEIGHT;
 
-        let to_no_ea = u64::min((bit_board::WIDTH - 1) - file, rank);
-        let to_so_ea = u64::min(bit_board::WIDTH - file, bit_board::HEIGHT - rank) - 1;
-        let to_so_we = u64::min(file, (bit_board::HEIGHT - 1) - rank);
-        let to_no_we = u64::min(file, rank);
+        let to_no_ea = min((Board::WIDTH - 1) - file, rank);
+        let to_so_ea = min(Board::WIDTH - file, Board::HEIGHT - rank) - 1;
+        let to_so_we = min(file, (Board::HEIGHT - 1) - rank);
+        let to_no_we = min(file, rank);
 
         for iter in 1..to_no_ea {
-            moves[i_usize] |= board >> bit_board::NO_EA * iter;
+            moves[i] |= board >> bit_board::NO_EA * iter;
         }
         for iter in 1..to_so_ea {
-            moves[i_usize] |= board << bit_board::SO_EA * iter;
+            moves[i] |= board << bit_board::SO_EA * iter;
         }
         for iter in 1..to_so_we {
-            moves[i_usize] |= board << bit_board::SO_WE * iter;
+            moves[i] |= board << bit_board::SO_WE * iter;
         }
         for iter in 1..to_no_we {
-            moves[i_usize] |= board >> bit_board::NO_WE * iter;
+            moves[i] |= board >> bit_board::NO_WE * iter;
         }
     }
 
@@ -349,30 +349,28 @@ fn generate_relevant_bishop_moves_per_square() -> U64PerSquare {
 fn generate_relevant_rook_moves_per_square() -> U64PerSquare {
     let mut moves = U64PerSquare::default();
 
-    for i in 0..bit_board::SIZE {
-        let i_usize = i as usize;
-
+    for i in 0..Board::SIZE {
         let board = bit_board::with_bit_at(i);
 
-        let file = i % bit_board::HEIGHT;
-        let rank = i / bit_board::HEIGHT;
+        let file = i % Board::HEIGHT;
+        let rank = i / Board::HEIGHT;
 
         let to_north = rank;
-        let to_east = (bit_board::WIDTH - file) - 1;
-        let to_south = (bit_board::HEIGHT - rank) - 1;
+        let to_east = (Board::WIDTH - file) - 1;
+        let to_south = (Board::HEIGHT - rank) - 1;
         let to_west = file;
 
         for iter in 1..to_north {
-            moves[i_usize] |= board >> bit_board::NORTH * iter;
+            moves[i] |= board >> bit_board::NORTH * iter;
         }
         for iter in 1..to_east {
-            moves[i_usize] |= board << bit_board::EAST * iter;
+            moves[i] |= board << bit_board::EAST * iter;
         }
         for iter in 1..to_south {
-            moves[i_usize] |= board << bit_board::SOUTH * iter;
+            moves[i] |= board << bit_board::SOUTH * iter;
         }
         for iter in 1..to_west {
-            moves[i_usize] |= board >> bit_board::WEST * iter;
+            moves[i] |= board >> bit_board::WEST * iter;
         }
     }
 
@@ -401,7 +399,7 @@ fn generate_all_possible_attacks_for(
     all_relevant_moves: &U64PerSquare,
     number_of_all_relevant_moves: &U64PerSquare,
     magic_numbers: &U64PerSquare,
-    calculate_attacks_for: fn(&usize, u64) -> u64,
+    calculate_attacks_for: fn(usize, u64) -> u64,
 ) -> Box<[U64PerSquare; 4096]> {
     let mut all_attacks: Box<[U64PerSquare; 4096]> = vec![U64PerSquare::default(); 4096]
         .into_boxed_slice()
@@ -410,7 +408,7 @@ fn generate_all_possible_attacks_for(
 
     for i in 0..Board::SIZE {
         let relevant_moves = all_relevant_moves[i];
-        let number_of_relevant_moves = number_of_all_relevant_moves[i];
+        let number_of_relevant_moves = number_of_all_relevant_moves[i] as usize;
 
         for occupancy_idx in 0..number_of_occupancy_variants(number_of_relevant_moves) {
             let occupancy_variant =
@@ -422,29 +420,29 @@ fn generate_all_possible_attacks_for(
                 number_of_relevant_moves,
             );
 
-            all_attacks[magic_index][i] = calculate_attacks_for(&i, occupancy_variant);
+            all_attacks[magic_index][i] = calculate_attacks_for(i, occupancy_variant);
         }
     }
 
     all_attacks
 }
 
-fn generate_magic_number_for<T: BoardPos>(pos: &T, piece: Piece) -> u64 {
-    let idx = pos.idx();
+fn generate_magic_number_for(idx: usize, piece: Piece) -> u64 {
+    let idx = idx.into();
 
     let (relevant_moves, number_of_relevant_moves, get_attacks_for): (
         u64,
-        u64,
-        fn(&T, u64) -> u64,
+        usize,
+        fn(usize, u64) -> u64,
     ) = match piece {
         Piece::Bishop => (
             RELEVANT_BISHOP_MOVES_PER_SQUARE[idx],
-            NUMBER_OF_RELEVANT_BISHOP_MOVES_PER_SQUARE[idx],
+            NUMBER_OF_RELEVANT_BISHOP_MOVES_PER_SQUARE[idx] as usize,
             piece::calculate_bishop_attacks_for,
         ),
         Piece::Rook => (
             RELEVANT_ROOK_MOVES_PER_SQUARE[idx],
-            NUMBER_OF_RELEVANT_ROOK_MOVES_PER_SQUARE[idx],
+            NUMBER_OF_RELEVANT_ROOK_MOVES_PER_SQUARE[idx] as usize,
             piece::calculate_rook_attacks_for,
         ),
         _ => panic!(
@@ -461,7 +459,7 @@ fn generate_magic_number_for<T: BoardPos>(pos: &T, piece: Piece) -> u64 {
         let variant =
             bb::move_occupancy_variant(occupancy_idx, number_of_relevant_moves, relevant_moves);
 
-        attacks[occupancy_idx] = get_attacks_for(pos, variant);
+        attacks[occupancy_idx] = get_attacks_for(idx, variant);
         occupancy_variants[occupancy_idx] = variant;
     }
 
@@ -510,7 +508,7 @@ fn generate_magic_number_for<T: BoardPos>(pos: &T, piece: Piece) -> u64 {
 /// of pieces on those squares.
 ///
 /// TODO: add example.
-fn number_of_occupancy_variants(number_of_relevant_moves: u64) -> usize {
+fn number_of_occupancy_variants(number_of_relevant_moves: usize) -> usize {
     // TODO: Reduce this number.
     // Currently this results in a vast overestimate of this number (I think).
     // Maybe there is a more sensible way to do this. Hardcode a value maybe?
@@ -529,7 +527,7 @@ fn magic_index_of(
     magic_number: u64,
     mut occupancies: u64,
     relevant_move_mask: u64,
-    number_of_relevant_moves: u64,
+    number_of_relevant_moves: usize,
 ) -> usize {
     occupancies &= relevant_move_mask;
     occupancies.wrapping_mul(magic_number) as usize >> 64 - number_of_relevant_moves
@@ -563,7 +561,7 @@ mod bb {
     /// See [`number_of_occupancy_variants`] for additional information.
     pub fn move_occupancy_variant(
         occupancy_idx: usize,
-        number_of_relevant_moves: u64,
+        number_of_relevant_moves: usize,
         mut relevant_moves: u64,
     ) -> u64 {
         let mut variant = 0;

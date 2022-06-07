@@ -42,7 +42,7 @@ pub fn get_fg_color_of(idx: usize, board: &Board) -> &str {
     const FG_BLACK: &str = "\u{001b}[38;5;0m";
     const FG_WHITE: &str = "\u{001b}[38;5;15m";
 
-    match board.get(&idx) {
+    match board.get(idx) {
         Some(ins) => match ins.color {
             crate::Color::Black => FG_BLACK,
             crate::Color::White => FG_WHITE,
@@ -52,7 +52,7 @@ pub fn get_fg_color_of(idx: usize, board: &Board) -> &str {
 }
 
 pub fn get_piece_symbol_at(idx: usize, board: &Board) -> &str {
-    match board.get(&idx) {
+    match board.get(idx) {
         Some(ins) => ins.piece.get_symbol(),
         None => "",
     }
