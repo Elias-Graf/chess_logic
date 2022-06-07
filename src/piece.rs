@@ -690,17 +690,23 @@ impl Piece {
         }
     }
 
-    // TODO: refactor to return the unicode versions:
-    // https://en.wikipedia.org/wiki/Chess_symbols_in_Unicode
-    // TODO: make black lower case and white upper case, removing the need to use ansi colors.
-    pub const fn get_symbol(&self) -> &'static str {
-        match self {
-            Self::Bishop => "BI",
-            Self::King => "KI",
-            Self::Knight => "KN",
-            Self::Pawn => "PA",
-            Self::Queen => "QU",
-            Self::Rook => "RO",
+    /// Returns the symbol in unicode.
+    ///
+    /// https://en.wikipedia.org/wiki/Chess_symbols_in_Unicode
+    pub fn symbol(&self, color: Color) -> &str {
+        match (color, self) {
+            (Color::Black, Piece::Bishop) => "♗",
+            (Color::Black, Piece::King) => "♔",
+            (Color::Black, Piece::Knight) => "♘",
+            (Color::Black, Piece::Pawn) => "♙",
+            (Color::Black, Piece::Queen) => "♕",
+            (Color::Black, Piece::Rook) => "♖",
+            (Color::White, Piece::Bishop) => "♝",
+            (Color::White, Piece::King) => "♚",
+            (Color::White, Piece::Knight) => "♞",
+            (Color::White, Piece::Pawn) => "♟",
+            (Color::White, Piece::Queen) => "♛",
+            (Color::White, Piece::Rook) => "♜",
         }
     }
 
@@ -1614,15 +1620,9 @@ mod tests_old {
                 out.push('\n');
             }
 
-            let bg_color = display_board::get_bg_color_of(idx);
             let value = if moves.contains(&&idx) { "*" } else { "" };
 
-            out.push_str(&format!(
-                "{}{: ^4}{}",
-                bg_color,
-                value,
-                display_board::RESET_ANSI,
-            ));
+            out.push_str(&format!("{: ^4}", value,));
         }
 
         out

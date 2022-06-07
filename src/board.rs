@@ -493,6 +493,36 @@ impl Board {
     }
 }
 
+impl Display for Board {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut val = String::new();
+
+        for i in 0..Board::SIZE {
+            let file = i % Board::HEIGHT;
+            let rank = i / Board::HEIGHT;
+
+            if file == 0 {
+                val += &format!("{}  ", Board::HEIGHT - rank);
+            }
+
+            let sym = match self.get(i) {
+                Some(ins) => ins.piece.symbol(ins.color).to_owned(),
+                None => ".".to_owned(),
+            };
+
+            val += &format!(" {}", sym);
+
+            if file == 7 {
+                val += "\n";
+            }
+        }
+
+        val += "\n    a b c d e f g h";
+
+        write!(f, "{}", val)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PieceInstance {
     pub color: Color,

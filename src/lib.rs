@@ -1,8 +1,8 @@
 pub mod bit_board;
 pub mod board;
-pub mod display_board;
 pub mod fen;
 pub mod magic_bit_board;
+pub mod move_generator;
 pub mod piece;
 pub mod square;
 pub mod type_alias_default;
