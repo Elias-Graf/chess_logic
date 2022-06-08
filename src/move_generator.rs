@@ -1,71 +1,117 @@
 use std::fmt::{Debug, Display};
 
-use crate::{bit_board, piece::get_pawn_attacks_for, Board, Color, Piece, Square};
+use crate::{bit_board, board::BoardPos, piece::get_pawn_attacks_for, Board, Color, Piece, Square};
 
 pub fn all_moves(board: &Board) -> Vec<Move> {
     let all_pieces = board.all_pieces();
 
     let mut moves = Vec::new();
 
-    for src_idx in SetBitsIter(board.pawns[Color::White]) {
-        let dst_idx = src_idx - bit_board::NORTH as usize;
+    if board.is_whites_turn {
+        for src_idx in SetBitsIter(board.pawns[Color::White]) {
+            let dst_idx = src_idx - bit_board::NORTH as usize;
 
-        if dst_idx <= 7 {
-            moves.push(Move::new_prom(src_idx, dst_idx, Piece::Bishop));
-            moves.push(Move::new_prom(src_idx, dst_idx, Piece::Knight));
-            moves.push(Move::new_prom(src_idx, dst_idx, Piece::Queen));
-            moves.push(Move::new_prom(src_idx, dst_idx, Piece::Rook));
-        } else {
-            if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                moves.push(Move::new(src_idx, dst_idx, Piece::Pawn));
-            }
-        }
+            if dst_idx <= 7 {
+                if !bit_board::is_bit_set(all_pieces, dst_idx) {
+                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Bishop));
+                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Knight));
+                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Queen));
+                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Rook));
+                }
 
-        if src_idx >= 48 && src_idx <= 55 {
-            if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                let dst_idx = src_idx - bit_board::NORTH as usize * 2;
+                let attacks =
+                    get_pawn_attacks_for(src_idx, &Color::White) & board.pawns[Color::Black];
 
+                for attack in SetBitsIter(attacks) {
+                    moves.push(Move::new_prom(src_idx, attack, Piece::Bishop));
+                    moves.push(Move::new_prom(src_idx, attack, Piece::Knight));
+                    moves.push(Move::new_prom(src_idx, attack, Piece::Queen));
+                    moves.push(Move::new_prom(src_idx, attack, Piece::Rook));
+                }
+            } else {
                 if !bit_board::is_bit_set(all_pieces, dst_idx) {
                     moves.push(Move::new(src_idx, dst_idx, Piece::Pawn));
                 }
-            }
-        }
 
-        let attacks = get_pawn_attacks_for(src_idx, &Color::White) & board.pawns[Color::Black];
+                if src_idx >= 48 && src_idx <= 55 {
+                    if !bit_board::is_bit_set(all_pieces, dst_idx) {
+                        let dst_idx = src_idx - bit_board::NORTH as usize * 2;
 
-        for attack in SetBitsIter(attacks) {
-            moves.push(Move::new(src_idx, attack, Piece::Pawn));
-        }
-    }
+                        if !bit_board::is_bit_set(all_pieces, dst_idx) {
+                            moves.push(Move::new(src_idx, dst_idx, Piece::Pawn));
+                        }
+                    }
+                }
 
-    for src_idx in SetBitsIter(board.pawns[Color::Black]) {
-        let dst_idx = src_idx + bit_board::SOUTH as usize;
+                let attacks =
+                    get_pawn_attacks_for(src_idx, &Color::White) & board.pawns[Color::Black];
 
-        if dst_idx >= 56 && dst_idx <= 63 {
-            moves.push(Move::new_prom(src_idx, dst_idx, Piece::Bishop));
-            moves.push(Move::new_prom(src_idx, dst_idx, Piece::Knight));
-            moves.push(Move::new_prom(src_idx, dst_idx, Piece::Queen));
-            moves.push(Move::new_prom(src_idx, dst_idx, Piece::Rook));
-        } else {
-            if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                moves.push(Move::new(src_idx, dst_idx, Piece::Pawn));
-            }
-        }
+                for attack in SetBitsIter(attacks) {
+                    moves.push(Move::new(src_idx, attack, Piece::Pawn));
+                }
 
-        if src_idx >= 7 && src_idx <= 15 {
-            if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                let dst_idx = src_idx + bit_board::SOUTH as usize * 2;
-
-                if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                    moves.push(Move::new(src_idx, dst_idx, Piece::Pawn));
+                if let Some(en_passant_target_idx) = board.en_passant_target_idx {
+                    if bit_board::is_bit_set(
+                        get_pawn_attacks_for(src_idx, &Color::White),
+                        en_passant_target_idx,
+                    ) {
+                        moves.push(Move::new_en_pass(src_idx, en_passant_target_idx));
+                    }
                 }
             }
         }
+    } else {
+        for src_idx in SetBitsIter(board.pawns[Color::Black]) {
+            let dst_idx = src_idx + bit_board::SOUTH as usize;
 
-        let attacks = get_pawn_attacks_for(src_idx, &Color::Black) & board.pawns[Color::White];
+            if dst_idx >= 56 && dst_idx < 64 {
+                if !bit_board::is_bit_set(all_pieces, dst_idx) {
+                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Bishop));
+                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Knight));
+                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Queen));
+                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Rook));
+                }
 
-        for attack in SetBitsIter(attacks) {
-            moves.push(Move::new(src_idx, attack, Piece::Pawn));
+                let attacks =
+                    get_pawn_attacks_for(src_idx, &Color::Black) & board.pawns[Color::White];
+
+                for attack in SetBitsIter(attacks) {
+                    moves.push(Move::new_prom(src_idx, attack, Piece::Bishop));
+                    moves.push(Move::new_prom(src_idx, attack, Piece::Knight));
+                    moves.push(Move::new_prom(src_idx, attack, Piece::Queen));
+                    moves.push(Move::new_prom(src_idx, attack, Piece::Rook));
+                }
+            } else {
+                if !bit_board::is_bit_set(all_pieces, dst_idx) {
+                    moves.push(Move::new(src_idx, dst_idx, Piece::Pawn));
+                }
+
+                if src_idx >= 7 && src_idx <= 15 {
+                    if !bit_board::is_bit_set(all_pieces, dst_idx) {
+                        let dst_idx = src_idx + bit_board::SOUTH as usize * 2;
+
+                        if !bit_board::is_bit_set(all_pieces, dst_idx) {
+                            moves.push(Move::new(src_idx, dst_idx, Piece::Pawn));
+                        }
+                    }
+                }
+
+                let attacks =
+                    get_pawn_attacks_for(src_idx, &Color::Black) & board.pawns[Color::White];
+
+                for attack in SetBitsIter(attacks) {
+                    moves.push(Move::new(src_idx, attack, Piece::Pawn));
+                }
+
+                if let Some(en_passant_target_idx) = board.en_passant_target_idx {
+                    if bit_board::is_bit_set(
+                        get_pawn_attacks_for(src_idx, &Color::Black),
+                        en_passant_target_idx,
+                    ) {
+                        moves.push(Move::new_en_pass(src_idx, en_passant_target_idx));
+                    }
+                }
+            }
         }
     }
 
@@ -111,9 +157,10 @@ mod tests {
     }
 
     #[test]
-    fn black_pawns_push() {
+    fn black_pawn_push() {
         for (src, dst) in [(A6, A5), (B6, B5)] {
             let mut board = Board::new_empty();
+            board.is_whites_turn = false;
             board.set(src, Color::Black, Piece::Pawn);
 
             assert_moves_eq(&all_moves(&board), &vec![Move::new(src, dst, Piece::Pawn)]);
@@ -147,101 +194,146 @@ mod tests {
 
     #[test]
     fn black_pawn_double_push() {
-        let mut board = Board::new_empty();
-        board.set(A7, Color::Black, Piece::Pawn);
-
-        assert_moves_eq(
-            &all_moves(&board),
-            &vec![
-                Move::new(A7, A6, Piece::Pawn),
-                Move::new(A7, A5, Piece::Pawn),
-            ],
-        );
-
-        let mut board = Board::new_empty();
-        board.set(B7, Color::Black, Piece::Pawn);
-
-        assert_moves_eq(
-            &all_moves(&board),
-            &vec![
-                Move::new(B7, B6, Piece::Pawn),
-                Move::new(B7, B5, Piece::Pawn),
-            ],
-        );
-    }
-
-    #[test]
-    fn white_pawns_promote() {
-        for i in 8..16usize {
+        for src_idx in [usize::from(A7), B7.into()] {
             let mut board = Board::new_empty();
-            board.set(i, Color::White, Piece::Pawn);
+            board.is_whites_turn = false;
+            board.set(src_idx, Color::Black, Piece::Pawn);
 
             assert_moves_eq(
                 &all_moves(&board),
-                &[
-                    Move::new_prom(i, i - bit_board::NORTH as usize, Piece::Bishop),
-                    Move::new_prom(i, i - bit_board::NORTH as usize, Piece::Knight),
-                    Move::new_prom(i, i - bit_board::NORTH as usize, Piece::Queen),
-                    Move::new_prom(i, i - bit_board::NORTH as usize, Piece::Rook),
+                &vec![
+                    Move::new(src_idx, src_idx + bit_board::SOUTH, Piece::Pawn),
+                    Move::new(src_idx, src_idx + bit_board::SOUTH * 2, Piece::Pawn),
                 ],
             );
         }
     }
 
     #[test]
-    fn black_pawns_promote() {
-        for i in 48..55usize {
+    fn white_pawn_promotion() {
+        for i in 9..15usize {
             let mut board = Board::new_empty();
-            board.set(i, Color::Black, Piece::Pawn);
+            board.set(i, Color::White, Piece::Pawn);
+            board.set(i - bit_board::NO_WE, Color::Black, Piece::Pawn);
+            board.set(i - bit_board::NO_EA, Color::Black, Piece::Pawn);
 
             assert_moves_eq(
                 &all_moves(&board),
                 &[
+                    Move::new_prom(i, i - bit_board::NO_WE, Piece::Bishop),
+                    Move::new_prom(i, i - bit_board::NO_WE, Piece::Knight),
+                    Move::new_prom(i, i - bit_board::NO_WE, Piece::Queen),
+                    Move::new_prom(i, i - bit_board::NO_WE, Piece::Rook),
+                    Move::new_prom(i, i - bit_board::NORTH, Piece::Bishop),
+                    Move::new_prom(i, i - bit_board::NORTH, Piece::Knight),
+                    Move::new_prom(i, i - bit_board::NORTH, Piece::Queen),
+                    Move::new_prom(i, i - bit_board::NORTH, Piece::Rook),
+                    Move::new_prom(i, i - bit_board::NO_EA, Piece::Bishop),
+                    Move::new_prom(i, i - bit_board::NO_EA, Piece::Knight),
+                    Move::new_prom(i, i - bit_board::NO_EA, Piece::Queen),
+                    Move::new_prom(i, i - bit_board::NO_EA, Piece::Rook),
+                ],
+            );
+        }
+    }
+
+    #[test]
+    fn white_pawn_promotion_blocked() {
+        for i in 0..8usize {
+            let mut board = Board::new_empty();
+            board.set(i, Color::Black, Piece::Pawn);
+            board.set(i + bit_board::SOUTH, Color::White, Piece::Pawn);
+
+            assert_moves_eq(&all_moves(&board), &[]);
+        }
+    }
+
+    #[test]
+    fn black_pawn_promotion() {
+        for i in 49..54usize {
+            let mut board = Board::new_empty();
+            board.is_whites_turn = false;
+            board.set(i, Color::Black, Piece::Pawn);
+            board.set(i + bit_board::SO_WE, Color::White, Piece::Pawn);
+            board.set(i + bit_board::SO_EA, Color::White, Piece::Pawn);
+
+            assert_moves_eq(
+                &all_moves(&board),
+                &[
+                    Move::new_prom(i, i + bit_board::SO_WE, Piece::Bishop),
+                    Move::new_prom(i, i + bit_board::SO_WE, Piece::Knight),
+                    Move::new_prom(i, i + bit_board::SO_WE, Piece::Queen),
+                    Move::new_prom(i, i + bit_board::SO_WE, Piece::Rook),
                     Move::new_prom(i, i + bit_board::SOUTH as usize, Piece::Bishop),
                     Move::new_prom(i, i + bit_board::SOUTH as usize, Piece::Knight),
                     Move::new_prom(i, i + bit_board::SOUTH as usize, Piece::Queen),
                     Move::new_prom(i, i + bit_board::SOUTH as usize, Piece::Rook),
+                    Move::new_prom(i, i + bit_board::SO_EA, Piece::Bishop),
+                    Move::new_prom(i, i + bit_board::SO_EA, Piece::Knight),
+                    Move::new_prom(i, i + bit_board::SO_EA, Piece::Queen),
+                    Move::new_prom(i, i + bit_board::SO_EA, Piece::Rook),
                 ],
             );
         }
     }
 
     #[test]
-    fn pawn_pushes_blocked() {
-        let board = Board::from_fen("8/5p1p/7P/5p2/2P5/p7/P1P5/8 w - - 0 0").unwrap();
+    fn black_pawn_promotion_blocked() {
+        for i in 56..64 {
+            let mut board = Board::new_empty();
+            board.is_whites_turn = false;
+            board.set(i, Color::White, Piece::Pawn);
+            board.set(i - bit_board::NORTH, Color::Black, Piece::Pawn);
+
+            assert_moves_eq(&all_moves(&board), &[]);
+        }
+    }
+
+    #[test]
+    fn white_pawn_pushes_blocked() {
+        let board = Board::from_fen("8/8/8/8/1P6/P7/PP6/8 w - - 0 0").unwrap();
 
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(C4, C5, Piece::Pawn),
-                Move::new(C2, C3, Piece::Pawn),
-                Move::new(F7, F6, Piece::Pawn),
-                Move::new(F5, F4, Piece::Pawn),
+                Move::new(B4, B5, Piece::Pawn),
+                Move::new(A3, A4, Piece::Pawn),
+                Move::new(B2, B3, Piece::Pawn),
             ],
         );
     }
 
     #[test]
-    fn white_pawns_capture() {
+    fn black_pawn_pushes_blocked() {
+        let board = Board::from_fen("8/6pp/7p/6p1/8/8/8/8 b - - 0 0").unwrap();
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(G7, G6, Piece::Pawn),
+                Move::new(H6, H5, Piece::Pawn),
+                Move::new(G5, G4, Piece::Pawn),
+            ],
+        );
+    }
+
+    #[test]
+    fn white_pawn_capture() {
         let board = Board::from_fen("8/8/8/8/p1p5/1P7/8/8 w - - 0 0").unwrap();
 
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(A4, A3, Piece::Pawn),
-                Move::new(A4, B3, Piece::Pawn),
                 Move::new(B3, A4, Piece::Pawn),
                 Move::new(B3, B4, Piece::Pawn),
                 Move::new(B3, C4, Piece::Pawn),
-                Move::new(C4, B3, Piece::Pawn),
-                Move::new(C4, C3, Piece::Pawn),
             ],
         );
     }
 
     #[test]
-    fn black_pawns_capture() {
-        let board = Board::from_fen("8/8/1p6/P1P5/8/8/8/8 w - - 0 0").unwrap();
+    fn black_pawn_capture() {
+        let board = Board::from_fen("8/8/1p6/P1P5/8/8/8/8 b - - 0 0").unwrap();
 
         assert_moves_eq(
             &all_moves(&board),
@@ -249,12 +341,45 @@ mod tests {
                 Move::new(B6, B5, Piece::Pawn),
                 Move::new(B6, A5, Piece::Pawn),
                 Move::new(B6, C5, Piece::Pawn),
-                Move::new(A5, A6, Piece::Pawn),
-                Move::new(A5, B6, Piece::Pawn),
-                Move::new(C5, B6, Piece::Pawn),
-                Move::new(C5, C6, Piece::Pawn),
             ],
         );
+    }
+
+    #[test]
+    fn white_pawn_en_passant() {
+        for i in 24..31 {
+            let mut board = Board::new_empty();
+            board.en_passant_target_idx = Some(i - bit_board::NORTH);
+            board.set(i, Color::Black, Piece::Pawn);
+            board.set(i + bit_board::EAST, Color::White, Piece::Pawn);
+
+            assert_moves_eq(
+                &all_moves(&board),
+                &[
+                    Move::new_en_pass(i + bit_board::EAST, i - bit_board::NORTH),
+                    Move::new(i + bit_board::EAST, i - bit_board::NO_EA, Piece::Pawn),
+                ],
+            );
+        }
+    }
+
+    #[test]
+    fn black_pawn_en_passant() {
+        for i in 32..39 {
+            let mut board = Board::new_empty();
+            board.is_whites_turn = false;
+            board.en_passant_target_idx = Some(i + bit_board::SOUTH);
+            board.set(i, Color::White, Piece::Pawn);
+            board.set(i + bit_board::EAST, Color::Black, Piece::Pawn);
+            
+            assert_moves_eq(
+                &all_moves(&board),
+                &[
+                    Move::new_en_pass(i + bit_board::EAST, i + bit_board::SOUTH),
+                    Move::new(i + bit_board::EAST, i + bit_board::SO_EA, Piece::Pawn),
+                ],
+            );
+        }
     }
 
     fn assert_moves_eq(left: &[Move], right: &[Move]) {
@@ -319,7 +444,7 @@ impl Move {
         self.is_en_passant
     }
 
-    pub fn new(src: impl Into<usize>, dst: impl Into<usize>, piece: Piece) -> Self {
+    pub fn new(src: impl BoardPos, dst: impl BoardPos, piece: Piece) -> Self {
         Self {
             destination: dst.into(),
             is_castle: false,
@@ -331,15 +456,17 @@ impl Move {
         }
     }
 
-    pub fn new_prom(src: impl Into<usize>, dst: impl Into<usize>, promote_to: Piece) -> Self {
+    pub fn new_prom(src: impl BoardPos, dst: impl BoardPos, promote_to: Piece) -> Self {
         Self {
-            destination: dst.into(),
-            is_castle: false,
-            is_double_push: false,
-            is_en_passant: false,
-            piece: Piece::Pawn,
             promote_to: Some(promote_to),
-            source: src.into(),
+            ..Self::new(src, dst, Piece::Pawn)
+        }
+    }
+
+    pub fn new_en_pass(src: impl BoardPos, dst: impl BoardPos) -> Self {
+        Self {
+            is_en_passant: true,
+            ..Self::new(src, dst, Piece::Pawn)
         }
     }
 
@@ -392,7 +519,17 @@ impl Display for Move {
             self.piece,
             Square::try_from(self.source()).unwrap(),
             Square::try_from(self.destination()).unwrap(),
-        )
+        )?;
+
+        if self.is_en_passant {
+            write!(f, " (en passant)")?;
+        }
+
+        if let Some(promote_to) = self.promote_to {
+            write!(f, " [promote to: '{:?}']", promote_to)?;
+        }
+
+        Ok(())
     }
 }
 

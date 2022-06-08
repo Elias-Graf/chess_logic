@@ -518,6 +518,19 @@ impl Display for Board {
 
         val += "\n    a b c d e f g h";
 
+        val += "\n    side to move: ";
+        val += if self.is_whites_turn {
+            "white"
+        } else {
+            "black"
+        };
+
+        val += "\n    en passant target: ";
+        val += &self
+            .en_passant_target_idx
+            .map(|i| format!("{:?}", Square::try_from(i).unwrap()))
+            .unwrap_or_else(|| "<None>".to_owned());
+
         write!(f, "{}", val)
     }
 }
