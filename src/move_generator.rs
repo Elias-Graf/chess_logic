@@ -1,121 +1,108 @@
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    ops::Sub,
+};
 
-use crate::{bit_board, board::BoardPos, piece::get_pawn_attacks_for, Board, Color, Piece, Square};
+use crate::{
+    bit_board::{self, NORTH, SOUTH, WEST},
+    board::BoardPos,
+    piece::get_pawn_attacks_for,
+    Board,
+    Color::{self, *},
+    Piece, Square,
+};
 
 pub fn all_moves(board: &Board) -> Vec<Move> {
-    let all_pieces = board.all_pieces();
-
     let mut moves = Vec::new();
 
-    if board.is_whites_turn {
-        for src_idx in SetBitsIter(board.pawns[Color::White]) {
-            let dst_idx = src_idx - bit_board::NORTH as usize;
+    add_pawn_moves(board, &mut moves);
 
-            if dst_idx <= 7 {
-                if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Bishop));
-                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Knight));
-                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Queen));
-                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Rook));
-                }
+    return moves;
+}
 
-                let attacks =
-                    get_pawn_attacks_for(src_idx, &Color::White) & board.pawns[Color::Black];
+fn add_pawn_moves(board: &Board, moves: &mut Vec<Move>) {
+    let all_pieces = board.all_pieces();
+    let atk_color = match board.is_whites_turn {
+        true => Color::White,
+        false => Color::Black,
+    };
+    let opp_color = atk_color.opposing();
+    let (dir, can_do_double_push, is_prom): (_, fn(usize) -> bool, fn(usize) -> bool) =
+        match atk_color {
+            Black => (SOUTH as i8, can_black_do_dbl_push, is_black_prom),
+            White => (-(NORTH as i8), can_white_do_dbl_push, is_white_prom),
+        };
 
-                for attack in SetBitsIter(attacks) {
-                    moves.push(Move::new_prom(src_idx, attack, Piece::Bishop));
-                    moves.push(Move::new_prom(src_idx, attack, Piece::Knight));
-                    moves.push(Move::new_prom(src_idx, attack, Piece::Queen));
-                    moves.push(Move::new_prom(src_idx, attack, Piece::Rook));
-                }
-            } else {
-                if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                    moves.push(Move::new(src_idx, dst_idx, Piece::Pawn));
-                }
+    let pawns = board.pawns[atk_color];
 
-                if src_idx >= 48 && src_idx <= 55 {
+    for src_i in SetBitsIter(pawns) {
+        let dst_i = (src_i as i8 + dir) as usize;
+
+        if is_prom(dst_i) {
+            // Promotions
+            if !bit_board::is_bit_set(all_pieces, dst_i) {
+                moves.push(Move::new_prom(src_i, dst_i, Piece::Bishop));
+                moves.push(Move::new_prom(src_i, dst_i, Piece::Knight));
+                moves.push(Move::new_prom(src_i, dst_i, Piece::Queen));
+                moves.push(Move::new_prom(src_i, dst_i, Piece::Rook));
+            }
+
+            // Capturing promotions
+            let captures = get_pawn_attacks_for(src_i, &atk_color) & board.pawns[opp_color];
+            for capture in SetBitsIter(captures) {
+                moves.push(Move::new_prom(src_i, capture, Piece::Bishop));
+                moves.push(Move::new_prom(src_i, capture, Piece::Knight));
+                moves.push(Move::new_prom(src_i, capture, Piece::Queen));
+                moves.push(Move::new_prom(src_i, capture, Piece::Rook));
+            }
+        } else {
+            // Push
+            if !bit_board::is_bit_set(all_pieces, dst_i) {
+                moves.push(Move::new(src_i, dst_i, Piece::Pawn));
+
+                // Double push
+                if can_do_double_push(src_i) {
+                    let dst_idx = (src_i as i8 + dir * 2) as usize;
+
                     if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                        let dst_idx = src_idx - bit_board::NORTH as usize * 2;
-
-                        if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                            moves.push(Move::new(src_idx, dst_idx, Piece::Pawn));
-                        }
-                    }
-                }
-
-                let attacks =
-                    get_pawn_attacks_for(src_idx, &Color::White) & board.pawns[Color::Black];
-
-                for attack in SetBitsIter(attacks) {
-                    moves.push(Move::new(src_idx, attack, Piece::Pawn));
-                }
-
-                if let Some(en_passant_target_idx) = board.en_passant_target_idx {
-                    if bit_board::is_bit_set(
-                        get_pawn_attacks_for(src_idx, &Color::White),
-                        en_passant_target_idx,
-                    ) {
-                        moves.push(Move::new_en_pass(src_idx, en_passant_target_idx));
+                        moves.push(Move::new(src_i, dst_idx, Piece::Pawn));
                     }
                 }
             }
-        }
-    } else {
-        for src_idx in SetBitsIter(board.pawns[Color::Black]) {
-            let dst_idx = src_idx + bit_board::SOUTH as usize;
 
-            if dst_idx >= 56 && dst_idx < 64 {
-                if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Bishop));
-                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Knight));
-                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Queen));
-                    moves.push(Move::new_prom(src_idx, dst_idx, Piece::Rook));
-                }
+            // Captures
+            let captures = get_pawn_attacks_for(src_i, &atk_color) & board.pawns[opp_color];
+            for capture in SetBitsIter(captures) {
+                moves.push(Move::new(src_i, capture, Piece::Pawn));
+            }
 
-                let attacks =
-                    get_pawn_attacks_for(src_idx, &Color::Black) & board.pawns[Color::White];
-
-                for attack in SetBitsIter(attacks) {
-                    moves.push(Move::new_prom(src_idx, attack, Piece::Bishop));
-                    moves.push(Move::new_prom(src_idx, attack, Piece::Knight));
-                    moves.push(Move::new_prom(src_idx, attack, Piece::Queen));
-                    moves.push(Move::new_prom(src_idx, attack, Piece::Rook));
-                }
-            } else {
-                if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                    moves.push(Move::new(src_idx, dst_idx, Piece::Pawn));
-                }
-
-                if src_idx >= 7 && src_idx <= 15 {
-                    if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                        let dst_idx = src_idx + bit_board::SOUTH as usize * 2;
-
-                        if !bit_board::is_bit_set(all_pieces, dst_idx) {
-                            moves.push(Move::new(src_idx, dst_idx, Piece::Pawn));
-                        }
-                    }
-                }
-
-                let attacks =
-                    get_pawn_attacks_for(src_idx, &Color::Black) & board.pawns[Color::White];
-
-                for attack in SetBitsIter(attacks) {
-                    moves.push(Move::new(src_idx, attack, Piece::Pawn));
-                }
-
-                if let Some(en_passant_target_idx) = board.en_passant_target_idx {
-                    if bit_board::is_bit_set(
-                        get_pawn_attacks_for(src_idx, &Color::Black),
-                        en_passant_target_idx,
-                    ) {
-                        moves.push(Move::new_en_pass(src_idx, en_passant_target_idx));
-                    }
+            // En passant
+            if let Some(en_passant_target_idx) = board.en_passant_target_idx {
+                if bit_board::is_bit_set(
+                    get_pawn_attacks_for(src_i, &atk_color),
+                    en_passant_target_idx,
+                ) {
+                    moves.push(Move::new_en_pass(src_i, en_passant_target_idx));
                 }
             }
         }
     }
 
-    moves
+    fn can_black_do_dbl_push(i: usize) -> bool {
+        i > 7 && i < 15
+    }
+
+    fn can_white_do_dbl_push(i: usize) -> bool {
+        i > 47 && i < 56
+    }
+
+    fn is_white_prom(i: usize) -> bool {
+        i < 8
+    }
+
+    fn is_black_prom(i: usize) -> bool {
+        i > 55 && i < 64
+    }
 }
 
 struct SetBitsIter(u64);
@@ -371,7 +358,7 @@ mod tests {
             board.en_passant_target_idx = Some(i + bit_board::SOUTH);
             board.set(i, Color::White, Piece::Pawn);
             board.set(i + bit_board::EAST, Color::Black, Piece::Pawn);
-            
+
             assert_moves_eq(
                 &all_moves(&board),
                 &[
