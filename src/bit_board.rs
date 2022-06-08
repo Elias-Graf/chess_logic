@@ -38,7 +38,7 @@ pub fn with_bit_at(i: usize) -> u64 {
     board
 }
 
-pub fn is_set(board: u64, i: usize) -> bool {
+pub fn is_bit_set(board: u64, i: usize) -> bool {
     get_bit(board, i) > 0
 }
 

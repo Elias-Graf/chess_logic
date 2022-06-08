@@ -1,5 +1,5 @@
 use std::{
-    fmt::Debug,
+    fmt::{Debug, Display},
     ops::{Index, IndexMut},
 };
 
@@ -53,7 +53,6 @@ impl IndexMut<Color> for BitBoardPerColor {
         &mut self[index as usize]
     }
 }
-
 
 pub trait BoardPos: Into<usize> + Copy {}
 impl BoardPos for usize {}
@@ -254,22 +253,22 @@ impl Board {
         let i = pos.into();
 
         for color in [Color::Black, Color::White] {
-            if bit_board::is_set(self.bishops[color], i) {
+            if bit_board::is_bit_set(self.bishops[color], i) {
                 return Some(PieceInstance::new(color, Piece::Bishop));
             }
-            if bit_board::is_set(self.king[color], i) {
+            if bit_board::is_bit_set(self.king[color], i) {
                 return Some(PieceInstance::new(color, Piece::King));
             }
-            if bit_board::is_set(self.knights[color], i) {
+            if bit_board::is_bit_set(self.knights[color], i) {
                 return Some(PieceInstance::new(color, Piece::Knight));
             }
-            if bit_board::is_set(self.pawns[color], i) {
+            if bit_board::is_bit_set(self.pawns[color], i) {
                 return Some(PieceInstance::new(color, Piece::Pawn));
             }
-            if bit_board::is_set(self.queens[color], i) {
+            if bit_board::is_bit_set(self.queens[color], i) {
                 return Some(PieceInstance::new(color, Piece::Queen));
             }
-            if bit_board::is_set(self.rooks[color], i) {
+            if bit_board::is_bit_set(self.rooks[color], i) {
                 return Some(PieceInstance::new(color, Piece::Rook));
             }
         }

@@ -4,7 +4,7 @@ use once_cell::sync::Lazy;
 
 use crate::{
     bit_board::{self, ColoredU64PerSquare, U64PerSquare},
-    board::{MoveByIdx, BoardPos},
+    board::{BoardPos, MoveByIdx},
     magic_bit_board,
     square::{Square, _BoardPos},
     type_alias_default::TypeAliasDefault,
@@ -40,7 +40,7 @@ static KNIGHT_ATTACKS: Lazy<U64PerSquare> = Lazy::new(generate_knight_attacks);
 static PAWN_ATTACKS: Lazy<ColoredU64PerSquare> = Lazy::new(generate_pawn_attacks);
 
 pub fn get_bishop_attacks_for(pos: impl BoardPos, blockers: u64) -> u64 {
-    magic_bit_board::get_bishop_attacks_for(&pos.into(), blockers)
+    magic_bit_board::get_bishop_attacks_for(pos.into(), blockers)
 }
 
 pub fn get_king_attacks_for(pos: impl BoardPos) -> u64 {
@@ -56,12 +56,14 @@ pub fn get_pawn_attacks_for(pos: impl BoardPos, color: &Color) -> u64 {
 }
 
 pub fn get_queen_attacks_for(pos: impl BoardPos, blockers: u64) -> u64 {
-    magic_bit_board::get_bishop_attacks_for(&pos.into(), blockers)
-        | magic_bit_board::get_rook_attacks_for(&pos.into(), blockers)
+    let i = pos.into();
+
+    magic_bit_board::get_bishop_attacks_for(i, blockers)
+        | magic_bit_board::get_rook_attacks_for(i, blockers)
 }
 
 pub fn get_rook_attacks_for(pos: impl BoardPos, blockers: u64) -> u64 {
-    magic_bit_board::get_rook_attacks_for(&pos.into(), blockers)
+    magic_bit_board::get_rook_attacks_for(pos.into(), blockers)
 }
 
 #[cfg(test)]
@@ -332,7 +334,7 @@ impl Piece {
             for iter in range {
                 attacks |= dir_shift(board, iter);
 
-                if bit_board::is_set(dir_shift(blockers, iter), i) {
+                if bit_board::is_bit_set(dir_shift(blockers, iter), i) {
                     break;
                 }
             }
@@ -628,7 +630,7 @@ impl Piece {
             for iter in range {
                 attacks |= dir_shift(board, iter);
 
-                if bit_board::is_set(dir_shift(blockers, iter), i) {
+                if bit_board::is_bit_set(dir_shift(blockers, iter), i) {
                     break;
                 }
             }
@@ -864,13 +866,13 @@ fn generate_king_attacks() -> U64PerSquare {
         let mut board = bit_board::with_bit_at(i);
 
         mask[i] |= board >> bit_board::NORTH;
-        if bit_board::is_set(board & NOT_FILE_H, i) {
+        if bit_board::is_bit_set(board & NOT_FILE_H, i) {
             mask[i] |= board >> bit_board::NO_EA;
             mask[i] |= board << bit_board::EAST;
             mask[i] |= board << bit_board::SO_EA;
         }
         mask[i] |= board << bit_board::SOUTH;
-        if bit_board::is_set(board & NOT_FILE_A, i) {
+        if bit_board::is_bit_set(board & NOT_FILE_A, i) {
             mask[i] |= board << bit_board::SO_WE;
             mask[i] |= board >> bit_board::WEST;
             mask[i] |= board >> bit_board::NO_WE;
@@ -886,23 +888,23 @@ fn generate_knight_attacks() -> U64PerSquare {
     for i in 0..Board::SIZE {
         let board = bit_board::with_bit_at(i);
 
-        if bit_board::is_set(board & NOT_FILE_A, i) {
+        if bit_board::is_bit_set(board & NOT_FILE_A, i) {
             mask[i] |= board >> bit_board::NORTH >> bit_board::NO_WE;
         }
-        if bit_board::is_set(board & NOT_FILE_H, i) {
+        if bit_board::is_bit_set(board & NOT_FILE_H, i) {
             mask[i] |= board >> bit_board::NORTH >> bit_board::NO_EA;
         }
-        if bit_board::is_set(board & NOT_FILE_GH, i) {
+        if bit_board::is_bit_set(board & NOT_FILE_GH, i) {
             mask[i] |= board << bit_board::EAST >> bit_board::NO_EA;
             mask[i] |= board << bit_board::EAST << bit_board::SO_EA;
         }
-        if bit_board::is_set(board & NOT_FILE_A, i) {
+        if bit_board::is_bit_set(board & NOT_FILE_A, i) {
             mask[i] |= board << bit_board::SOUTH << bit_board::SO_WE;
         }
-        if bit_board::is_set(board & NOT_FILE_H, i) {
+        if bit_board::is_bit_set(board & NOT_FILE_H, i) {
             mask[i] |= board << bit_board::SOUTH << bit_board::SO_EA;
         }
-        if bit_board::is_set(board & NOT_FILE_AB, i) {
+        if bit_board::is_bit_set(board & NOT_FILE_AB, i) {
             mask[i] |= board >> bit_board::WEST << bit_board::SO_WE;
             mask[i] |= board >> bit_board::WEST >> bit_board::NO_WE;
         }
@@ -917,17 +919,17 @@ fn generate_pawn_attacks() -> ColoredU64PerSquare {
     for i in 0..Board::SIZE {
         let board = bit_board::with_bit_at(i);
 
-        if bit_board::is_set(board & NOT_FILE_A, i) {
+        if bit_board::is_bit_set(board & NOT_FILE_A, i) {
             mask[Color::White][i] |= board >> bit_board::NO_WE;
         }
-        if bit_board::is_set(board & NOT_FILE_H, i) {
+        if bit_board::is_bit_set(board & NOT_FILE_H, i) {
             mask[Color::White][i] |= board >> bit_board::NO_EA;
         }
 
-        if bit_board::is_set(board & NOT_FILE_A, i) {
+        if bit_board::is_bit_set(board & NOT_FILE_A, i) {
             mask[Color::Black][i] |= board << bit_board::SO_WE;
         }
-        if bit_board::is_set(board & NOT_FILE_H, i) {
+        if bit_board::is_bit_set(board & NOT_FILE_H, i) {
             mask[Color::Black][i] |= board << bit_board::SO_EA;
         }
     }
@@ -939,7 +941,7 @@ fn generate_pawn_attacks() -> ColoredU64PerSquare {
 mod tests_old {
     use super::*;
 
-    use crate::{board::PieceInstance, display_board, square::_BoardPos, Color};
+    use crate::{board::PieceInstance, square::_BoardPos, Color};
     use Square::*;
 
     #[test]
@@ -1573,11 +1575,11 @@ mod tests_old {
         );
     }
 
-    fn assert_bit_boards_eq(left: u64, positions: &[impl _BoardPos]) {
+    fn assert_bit_boards_eq(left: u64, positions: &[impl BoardPos]) {
         let mut right = 0;
 
         for pos in positions {
-            bit_board::set_bit(&mut right, pos.idx() as u64);
+            bit_board::set_bit(&mut right, (*pos).into());
         }
 
         assert_eq!(
