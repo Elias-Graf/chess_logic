@@ -114,53 +114,38 @@ fn add_pawn_moves(
 }
 
 fn add_king_moves(board: &Board, all_pieces: u64, opp_color: Color, moves: &mut Vec<Move>) {
+    let mut castle = |not_atk: &[Square], src: Square, dst: Square| {
+        for square in not_atk {
+            if bit_board::is_bit_set(all_pieces, (*square).into())
+                || board.is_pos_attacked_by(*square, &opp_color)
+            {
+                return;
+            }
+        }
+
+        moves.push(Move::new_castle(src, dst));
+    };
+
     if board.can_white_castle_queen_side {
-        const REQUIRED_CLEAR_SQUARES_MASK: u64 = 1008806316530991104;
-
-        if !bit_board::has_set_bits(all_pieces & REQUIRED_CLEAR_SQUARES_MASK)
-            && !board.is_pos_attacked_by(Square::B1, &opp_color)
-            && !board.is_pos_attacked_by(Square::C1, &opp_color)
-            && !board.is_pos_attacked_by(Square::D1, &opp_color)
-        {
-            moves.push(Move::new_castle(Square::E1, Square::C1));
-        }
+        castle(
+            &[Square::B1, Square::C1, Square::D1],
+            Square::E1,
+            Square::C1,
+        );
     }
-
     if board.can_white_castle_king_side {
-        const REQUIRED_CLEAR_SQUARES_MASK: u64 = 6917529027641081856;
-
-        if !bit_board::has_set_bits(all_pieces & REQUIRED_CLEAR_SQUARES_MASK)
-            && !board.is_pos_attacked_by(Square::F1, &opp_color)
-            && !board.is_pos_attacked_by(Square::G1, &opp_color)
-        {
-            moves.push(Move::new_castle(Square::E1, Square::G1));
-        }
+        castle(&[Square::F1, Square::G1], Square::E1, Square::G1);
     }
-
     if board.can_black_castle_queen_side {
-        const REQUIRED_CLEAR_SQUARES_MASK: u64 = 14;
-
-        if !bit_board::has_set_bits(all_pieces & REQUIRED_CLEAR_SQUARES_MASK)
-            && !board.is_pos_attacked_by(Square::B8, &opp_color)
-            && !board.is_pos_attacked_by(Square::C8, &opp_color)
-            && !board.is_pos_attacked_by(Square::D8, &opp_color)
-        {
-            moves.push(Move::new_castle(Square::E8, Square::C8));
-        }
+        castle(
+            &[Square::B8, Square::C8, Square::D8],
+            Square::E8,
+            Square::C8,
+        );
     }
-
     if board.can_black_castle_king_side {
-        const REQUIRED_CLEAR_SQUARED_MASK: u64 = 96;
-
-        if !bit_board::has_set_bits(all_pieces & REQUIRED_CLEAR_SQUARED_MASK)
-            && !board.is_pos_attacked_by(Square::F8, &opp_color)
-            && !board.is_pos_attacked_by(Square::G8, &opp_color)
-        {
-            moves.push(Move::new_castle(Square::E8, Square::G8));
-        }
+        castle(&[Square::F8, Square::G8], Square::E8, Square::G8);
     }
-
-    // for src_i in SetBitsIter(board.king[Color::White]) {}
 }
 
 struct SetBitsIter(u64);
