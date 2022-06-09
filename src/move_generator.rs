@@ -13,20 +13,28 @@ use crate::{
 };
 
 pub fn all_moves(board: &Board) -> Vec<Move> {
-    let mut moves = Vec::new();
-
-    add_pawn_moves(board, &mut moves);
-
-    return moves;
-}
-
-fn add_pawn_moves(board: &Board, moves: &mut Vec<Move>) {
     let all_pieces = board.all_pieces();
     let atk_color = match board.is_whites_turn {
         true => Color::White,
         false => Color::Black,
     };
     let opp_color = atk_color.opposing();
+
+    let mut moves = Vec::new();
+
+    add_pawn_moves(board, all_pieces, atk_color, opp_color, &mut moves);
+    add_king_moves(board, all_pieces, opp_color, &mut moves);
+
+    return moves;
+}
+
+fn add_pawn_moves(
+    board: &Board,
+    all_pieces: u64,
+    atk_color: Color,
+    opp_color: Color,
+    moves: &mut Vec<Move>,
+) {
     let (dir, can_do_double_push, is_prom): (_, fn(usize) -> bool, fn(usize) -> bool) =
         match atk_color {
             Black => (SOUTH as i8, can_black_do_dbl_push, is_black_prom),
@@ -105,6 +113,56 @@ fn add_pawn_moves(board: &Board, moves: &mut Vec<Move>) {
     }
 }
 
+fn add_king_moves(board: &Board, all_pieces: u64, opp_color: Color, moves: &mut Vec<Move>) {
+    if board.can_white_castle_queen_side {
+        const REQUIRED_CLEAR_SQUARES_MASK: u64 = 1008806316530991104;
+
+        if !bit_board::has_set_bits(all_pieces & REQUIRED_CLEAR_SQUARES_MASK)
+            && !board.is_pos_attacked_by(Square::B1, &opp_color)
+            && !board.is_pos_attacked_by(Square::C1, &opp_color)
+            && !board.is_pos_attacked_by(Square::D1, &opp_color)
+        {
+            moves.push(Move::new_castle(Square::E1, Square::C1));
+        }
+    }
+
+    if board.can_white_castle_king_side {
+        const REQUIRED_CLEAR_SQUARES_MASK: u64 = 6917529027641081856;
+
+        if !bit_board::has_set_bits(all_pieces & REQUIRED_CLEAR_SQUARES_MASK)
+            && !board.is_pos_attacked_by(Square::F1, &opp_color)
+            && !board.is_pos_attacked_by(Square::G1, &opp_color)
+        {
+            moves.push(Move::new_castle(Square::E1, Square::G1));
+        }
+    }
+
+    if board.can_black_castle_queen_side {
+        const REQUIRED_CLEAR_SQUARES_MASK: u64 = 14;
+
+        if !bit_board::has_set_bits(all_pieces & REQUIRED_CLEAR_SQUARES_MASK)
+            && !board.is_pos_attacked_by(Square::B8, &opp_color)
+            && !board.is_pos_attacked_by(Square::C8, &opp_color)
+            && !board.is_pos_attacked_by(Square::D8, &opp_color)
+        {
+            moves.push(Move::new_castle(Square::E8, Square::C8));
+        }
+    }
+
+    if board.can_black_castle_king_side {
+        const REQUIRED_CLEAR_SQUARED_MASK: u64 = 96;
+
+        if !bit_board::has_set_bits(all_pieces & REQUIRED_CLEAR_SQUARED_MASK)
+            && !board.is_pos_attacked_by(Square::F8, &opp_color)
+            && !board.is_pos_attacked_by(Square::G8, &opp_color)
+        {
+            moves.push(Move::new_castle(Square::E8, Square::G8));
+        }
+    }
+
+    // for src_i in SetBitsIter(board.king[Color::White]) {}
+}
+
 struct SetBitsIter(u64);
 
 impl Iterator for SetBitsIter {
@@ -131,6 +189,7 @@ mod tests {
 
     use super::*;
 
+    use Piece::*;
     use Square::*;
 
     #[test]
@@ -369,6 +428,130 @@ mod tests {
         }
     }
 
+    #[test]
+    fn white_king_queen_side_castle() {
+        let board = Board::from_fen("8/8/8/8/8/8/8/R3K3 w Q - 0 0").unwrap();
+
+        assert_moves_eq(&all_moves(&board), &[Move::new_castle(E1, C1)]);
+    }
+
+    #[test]
+    fn black_king_queen_side_castle() {
+        let board = Board::from_fen("r3k3/8/8/8/8/8/8/8 b q - 0 0").unwrap();
+
+        assert_moves_eq(&all_moves(&board), &[Move::new_castle(E8, C8)]);
+    }
+
+    #[test]
+    fn white_king_queen_side_castle_blocked() {
+        let board = Board::from_fen("8/8/8/8/8/8/8/R3K3 w Q - 0 0").unwrap();
+
+        for i in 57..60 {
+            let mut board = board.clone();
+            board.set(i, White, Rook);
+
+            assert_moves_eq(&all_moves(&board), &[]);
+        }
+    }
+
+    #[test]
+    fn black_king_queen_side_castle_blocked() {
+        let board = Board::from_fen("r3k3/8/8/8/8/8/8/8 w q - 0 0").unwrap();
+
+        for i in 1..4 {
+            let mut board = board.clone();
+            board.set(i, White, Rook);
+
+            assert_moves_eq(&all_moves(&board), &[]);
+        }
+    }
+
+    #[test]
+    fn white_king_queen_side_castle_attacked() {
+        let board = Board::from_fen("8/8/8/8/8/8/8/R3K3 w Q - 0 0").unwrap();
+
+        for i in 57..60 {
+            let mut board = board.clone();
+            board.set(i - NORTH, Black, Rook);
+
+            assert_moves_eq(&all_moves(&board), &[]);
+        }
+    }
+
+    #[test]
+    fn black_king_queen_side_castle_attacked() {
+        let board = Board::from_fen("r3k3/8/8/8/8/8/8/8 b q - 0 0").unwrap();
+
+        for i in 1..4 {
+            let mut board = board.clone();
+            board.set(i + SOUTH, White, Rook);
+
+            assert_moves_eq(&all_moves(&board), &[]);
+        }
+    }
+
+    #[test]
+    fn white_king_king_side_castle() {
+        let board = Board::from_fen("8/8/8/8/8/8/8/4K2R w K - 0 0").unwrap();
+
+        assert_moves_eq(&all_moves(&board), &[Move::new_castle(E1, G1)]);
+    }
+
+    #[test]
+    fn black_king_king_side_castle() {
+        let board = Board::from_fen("4k2r/8/8/8/8/8/8/8 b k - 0 0").unwrap();
+
+        assert_moves_eq(&all_moves(&board), &[Move::new_castle(E8, G8)]);
+    }
+
+    #[test]
+    fn white_king_king_side_castle_blocked() {
+        let board = Board::from_fen("8/8/8/8/8/8/8/4K2R w K - 0 0").unwrap();
+
+        for i in 61..63 {
+            let mut board = board.clone();
+            board.set(i, White, Rook);
+
+            assert_moves_eq(&all_moves(&board), &[]);
+        }
+    }
+
+    #[test]
+    fn black_king_king_side_castle_blocked() {
+        let board = Board::from_fen("4k2r/8/8/8/8/8/8/8 b k - 0 0").unwrap();
+
+        for i in 5..7 {
+            let mut board = board.clone();
+            board.set(i, White, Rook);
+
+            assert_moves_eq(&all_moves(&board), &[]);
+        }
+    }
+
+    #[test]
+    fn white_king_king_side_castle_attacked() {
+        let board = Board::from_fen("8/8/8/8/8/8/8/4K2R w K - 0 0").unwrap();
+
+        for i in 61..63 {
+            let mut board = board.clone();
+            board.set(i - NORTH, Black, Rook);
+
+            assert_moves_eq(&all_moves(&board), &[]);
+        }
+    }
+
+    #[test]
+    fn black_king_king_side_castle_attacked() {
+        let board = Board::from_fen("4k2r/8/8/8/8/8/8/8 b k - 0 0").unwrap();
+
+        for i in 5..7 {
+            let mut board = board.clone();
+            board.set(i + SOUTH, White, Rook);
+
+            assert_moves_eq(&all_moves(&board), &[]);
+        }
+    }
+
     fn assert_moves_eq(left: &[Move], right: &[Move]) {
         let mut left = left.to_vec();
         left.sort_by(display_value);
@@ -443,16 +626,23 @@ impl Move {
         }
     }
 
-    pub fn new_prom(src: impl BoardPos, dst: impl BoardPos, promote_to: Piece) -> Self {
+    pub fn new_castle(src: impl BoardPos, dst: impl BoardPos) -> Self {
         Self {
-            promote_to: Some(promote_to),
-            ..Self::new(src, dst, Piece::Pawn)
+            is_castle: true,
+            ..Self::new(src, dst, Piece::King)
         }
     }
 
     pub fn new_en_pass(src: impl BoardPos, dst: impl BoardPos) -> Self {
         Self {
             is_en_passant: true,
+            ..Self::new(src, dst, Piece::Pawn)
+        }
+    }
+
+    pub fn new_prom(src: impl BoardPos, dst: impl BoardPos, promote_to: Piece) -> Self {
+        Self {
+            promote_to: Some(promote_to),
             ..Self::new(src, dst, Piece::Pawn)
         }
     }
