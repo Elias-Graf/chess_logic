@@ -1,6 +1,6 @@
 use std::{
     fmt::{Debug, Display},
-    ops::Sub,
+    ops::{ControlFlow, Sub},
 };
 
 use crate::{
@@ -11,6 +11,8 @@ use crate::{
     Color::{self, *},
     Piece, Square,
 };
+
+use Square::*;
 
 pub fn all_moves(board: &Board) -> Vec<Move> {
     let all_pieces = board.all_pieces();
@@ -114,38 +116,40 @@ fn add_pawn_moves(
 }
 
 fn add_king_moves(board: &Board, all_pieces: u64, opp_color: Color, moves: &mut Vec<Move>) {
-    let mut castle = |not_atk: &[Square], src: Square, dst: Square| {
-        for square in not_atk {
-            if bit_board::is_bit_set(all_pieces, (*square).into())
-                || board.is_pos_attacked_by(*square, &opp_color)
-            {
-                return;
-            }
+    let mut castle = |required_clear_mask: u64, not_atk: &[Square], src: Square, dst: Square| {
+        if bit_board::has_set_bits(all_pieces & required_clear_mask) {
+            return;
+        }
+
+        if squares_attacked_by(not_atk, board, opp_color) {
+            return;
         }
 
         moves.push(Move::new_castle(src, dst));
     };
 
     if board.can_white_castle_queen_side {
-        castle(
-            &[Square::B1, Square::C1, Square::D1],
-            Square::E1,
-            Square::C1,
-        );
+        castle(1008806316530991104, &[B1, C1, D1, E1], E1, C1);
     }
     if board.can_white_castle_king_side {
-        castle(&[Square::F1, Square::G1], Square::E1, Square::G1);
+        castle(6917529027641081856, &[E1, F1, G1], E1, G1);
     }
     if board.can_black_castle_queen_side {
-        castle(
-            &[Square::B8, Square::C8, Square::D8],
-            Square::E8,
-            Square::C8,
-        );
+        castle(14, &[B8, C8, D8, E8], E8, C8);
     }
     if board.can_black_castle_king_side {
-        castle(&[Square::F8, Square::G8], Square::E8, Square::G8);
+        castle(96, &[E8, F8, G8], E8, G8);
     }
+}
+
+fn squares_attacked_by(squares: &[Square], board: &Board, color: Color) -> bool {
+    for square in squares {
+        if board.is_pos_attacked_by(*square, &color) {
+            return true;
+        }
+    }
+
+    false
 }
 
 struct SetBitsIter(u64);
@@ -175,7 +179,6 @@ mod tests {
     use super::*;
 
     use Piece::*;
-    use Square::*;
 
     #[test]
     fn white_pawn_push() {
@@ -455,7 +458,7 @@ mod tests {
     fn white_king_queen_side_castle_attacked() {
         let board = Board::from_fen("8/8/8/8/8/8/8/R3K3 w Q - 0 0").unwrap();
 
-        for i in 57..60 {
+        for i in 57..61 {
             let mut board = board.clone();
             board.set(i - NORTH, Black, Rook);
 
@@ -467,7 +470,7 @@ mod tests {
     fn black_king_queen_side_castle_attacked() {
         let board = Board::from_fen("r3k3/8/8/8/8/8/8/8 b q - 0 0").unwrap();
 
-        for i in 1..4 {
+        for i in 1..5 {
             let mut board = board.clone();
             board.set(i + SOUTH, White, Rook);
 
@@ -517,7 +520,7 @@ mod tests {
     fn white_king_king_side_castle_attacked() {
         let board = Board::from_fen("8/8/8/8/8/8/8/4K2R w K - 0 0").unwrap();
 
-        for i in 61..63 {
+        for i in 60..63 {
             let mut board = board.clone();
             board.set(i - NORTH, Black, Rook);
 
@@ -529,7 +532,7 @@ mod tests {
     fn black_king_king_side_castle_attacked() {
         let board = Board::from_fen("4k2r/8/8/8/8/8/8/8 b k - 0 0").unwrap();
 
-        for i in 5..7 {
+        for i in 4..7 {
             let mut board = board.clone();
             board.set(i + SOUTH, White, Rook);
 
