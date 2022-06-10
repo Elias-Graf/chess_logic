@@ -85,7 +85,7 @@ pub fn get_first_set_bit(board: u64) -> Option<usize> {
         return None;
     }
 
-    let board = board as i64;
+    let board = board as i128;
     // Set all the bits to 1 up to the first bit.
     let filled_up_to_first = ((board & -board) - 1) as u64;
 

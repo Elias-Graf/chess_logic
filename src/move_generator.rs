@@ -24,11 +24,74 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
 
     let mut moves = Vec::new();
 
-    add_pawn_moves(board, all_pieces, atk_color, opp_color, &mut moves);
+    add_bishop_moves(board, all_pieces, &mut moves);
     add_king_moves(board, all_pieces, opp_color, &mut moves);
     add_knight_moves(board, &mut moves);
+    add_pawn_moves(board, all_pieces, atk_color, opp_color, &mut moves);
 
     return moves;
+}
+
+fn add_bishop_moves(board: &Board, all_pieces: u64, moves: &mut Vec<Move>) {
+    if board.is_whites_turn {
+        for src_i in SetBitsIter(board.bishops[White]) {
+            for dst_i in SetBitsIter(piece::get_bishop_attacks_for(src_i, all_pieces)) {
+                moves.push(Move::new(src_i, dst_i, Piece::Bishop));
+            }
+        }
+    } else {
+        for src_i in SetBitsIter(board.bishops[Black]) {
+            for dst_i in SetBitsIter(piece::get_bishop_attacks_for(src_i, all_pieces)) {
+                moves.push(Move::new(src_i, dst_i, Piece::Bishop));
+            }
+        }
+    }
+}
+
+fn add_king_moves(board: &Board, all_pieces: u64, opp_color: Color, moves: &mut Vec<Move>) {
+    let mut castle = |required_clear_mask: u64, not_atk: &[Square], src: Square, dst: Square| {
+        if bit_board::has_set_bits(all_pieces & required_clear_mask) {
+            return;
+        }
+
+        if squares_attacked_by(not_atk, board, opp_color) {
+            return;
+        }
+
+        moves.push(Move::new_castle(src, dst));
+    };
+
+    // TODO: Check if it's actually whites turn
+    if board.can_white_castle_queen_side {
+        castle(1008806316530991104, &[B1, C1, D1, E1], E1, C1);
+    }
+    if board.can_white_castle_king_side {
+        castle(6917529027641081856, &[E1, F1, G1], E1, G1);
+    }
+
+    // TODO: Check if it's actually blacks turn
+    if board.can_black_castle_queen_side {
+        castle(14, &[B8, C8, D8, E8], E8, C8);
+    }
+    if board.can_black_castle_king_side {
+        castle(96, &[E8, F8, G8], E8, G8);
+    }
+}
+
+fn add_knight_moves(board: &Board, moves: &mut Vec<Move>) {
+    if board.is_whites_turn {
+        for src_i in SetBitsIter(board.knights[White]) {
+            for dst_i in SetBitsIter(piece::get_knight_attacks_for(src_i)) {
+                moves.push(Move::new(src_i, dst_i, Piece::Knight));
+            }
+        }
+    } else {
+        for src_i in SetBitsIter(board.knights[Black]) {
+            for dst_i in SetBitsIter(piece::get_knight_attacks_for(src_i)) {
+                moves.push(Move::new(src_i, dst_i, Piece::Knight));
+            }
+        }
+    }
 }
 
 fn add_pawn_moves(
@@ -113,52 +176,6 @@ fn add_pawn_moves(
 
     fn is_black_prom(i: usize) -> bool {
         i > 55 && i < 64
-    }
-}
-
-fn add_king_moves(board: &Board, all_pieces: u64, opp_color: Color, moves: &mut Vec<Move>) {
-    let mut castle = |required_clear_mask: u64, not_atk: &[Square], src: Square, dst: Square| {
-        if bit_board::has_set_bits(all_pieces & required_clear_mask) {
-            return;
-        }
-
-        if squares_attacked_by(not_atk, board, opp_color) {
-            return;
-        }
-
-        moves.push(Move::new_castle(src, dst));
-    };
-
-    // TODO: Check if it's actually whites turn
-    if board.can_white_castle_queen_side {
-        castle(1008806316530991104, &[B1, C1, D1, E1], E1, C1);
-    }
-    if board.can_white_castle_king_side {
-        castle(6917529027641081856, &[E1, F1, G1], E1, G1);
-    }
-
-    // TODO: Check if it's actually blacks turn
-    if board.can_black_castle_queen_side {
-        castle(14, &[B8, C8, D8, E8], E8, C8);
-    }
-    if board.can_black_castle_king_side {
-        castle(96, &[E8, F8, G8], E8, G8);
-    }
-}
-
-fn add_knight_moves(board: &Board, moves: &mut Vec<Move>) {
-    if board.is_whites_turn {
-        for src_i in SetBitsIter(board.knights[White]) {
-            for dst_i in SetBitsIter(piece::get_knight_attacks_for(src_i)) {
-                moves.push(Move::new(src_i, dst_i, Piece::Knight));
-            }
-        }
-    } else {
-        for src_i in SetBitsIter(board.knights[Black]) {
-            for dst_i in SetBitsIter(piece::get_knight_attacks_for(src_i)) {
-                moves.push(Move::new(src_i, dst_i, Piece::Knight));
-            }
-        }
     }
 }
 
@@ -640,6 +657,137 @@ mod tests {
                 Move::new(G8, H6, Knight),
             ],
         );
+    }
+
+    #[test]
+    fn white_bishop() {
+        let mut board = Board::new_empty();
+        board.set(C1, White, Bishop);
+        board.set(A6, White, Bishop);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(A6, B5, Bishop),
+                Move::new(A6, B7, Bishop),
+                Move::new(A6, C4, Bishop),
+                Move::new(A6, C8, Bishop),
+                Move::new(A6, D3, Bishop),
+                Move::new(A6, E2, Bishop),
+                Move::new(A6, F1, Bishop),
+                Move::new(C1, A3, Bishop),
+                Move::new(C1, B2, Bishop),
+                Move::new(C1, D2, Bishop),
+                Move::new(C1, E3, Bishop),
+                Move::new(C1, F4, Bishop),
+                Move::new(C1, G5, Bishop),
+                Move::new(C1, H6, Bishop),
+            ],
+        );
+    }
+
+    #[test]
+    fn black_bishop() {
+        let mut board = Board::new_empty();
+        board.is_whites_turn = false;
+        board.set(F8, Black, Bishop);
+        board.set(H3, Black, Bishop);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(F8, G7, Bishop),
+                Move::new(F8, H6, Bishop),
+                Move::new(F8, E7, Bishop),
+                Move::new(F8, D6, Bishop),
+                Move::new(F8, C5, Bishop),
+                Move::new(F8, B4, Bishop),
+                Move::new(F8, A3, Bishop),
+                Move::new(H3, G4, Bishop),
+                Move::new(H3, F5, Bishop),
+                Move::new(H3, E6, Bishop),
+                Move::new(H3, D7, Bishop),
+                Move::new(H3, C8, Bishop),
+                Move::new(H3, G2, Bishop),
+                Move::new(H3, F1, Bishop),
+            ],
+        );
+    }
+
+    #[test]
+    fn white_bishop_white_only() {
+        let mut board = Board::new_empty();
+        board.set(C1, Black, Bishop);
+        board.set(A6, White, Bishop);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(A6, B5, Bishop),
+                Move::new(A6, B7, Bishop),
+                Move::new(A6, C4, Bishop),
+                Move::new(A6, C8, Bishop),
+                Move::new(A6, D3, Bishop),
+                Move::new(A6, E2, Bishop),
+                Move::new(A6, F1, Bishop),
+            ],
+        );
+    }
+
+    #[test]
+    fn black_bishop_black_only() {
+        let mut board = Board::new_empty();
+        board.is_whites_turn = false;
+        board.set(F8, Black, Bishop);
+        board.set(H3, White, Bishop);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(F8, G7, Bishop),
+                Move::new(F8, H6, Bishop),
+                Move::new(F8, E7, Bishop),
+                Move::new(F8, D6, Bishop),
+                Move::new(F8, C5, Bishop),
+                Move::new(F8, B4, Bishop),
+                Move::new(F8, A3, Bishop),
+            ],
+        );
+    }
+
+    #[test]
+    fn white_bishop_blocked() {
+        let mut board = Board::new_empty();
+        board.set(G7, White, Bishop);
+        board.set(E5, Black, Bishop);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(G7, F8, Bishop),
+                Move::new(G7, H8, Bishop),
+                Move::new(G7, F6, Bishop),
+                Move::new(G7, E5, Bishop),
+                Move::new(G7, H6, Bishop),
+            ],
+        );
+    }
+
+    #[test]
+    fn black_bishop_blocked() {
+        let mut board = Board::new_empty();
+        board.is_whites_turn = false;
+        board.set(C2, Black, Bishop);
+        board.set(B3, White, Bishop);
+        board.set(E4, White, Bishop);
+
+        assert_moves_eq(&all_moves(&board), &[
+            Move::new(C2, E4, Bishop),
+            Move::new(C2, B3, Bishop),
+            Move::new(C2, D3, Bishop),
+            Move::new(C2, B1, Bishop),
+            Move::new(C2, D1, Bishop),
+        ]);
     }
 
     fn assert_moves_eq(left: &[Move], right: &[Move]) {
