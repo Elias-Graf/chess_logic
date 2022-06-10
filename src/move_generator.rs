@@ -6,7 +6,7 @@ use std::{
 use crate::{
     bit_board::{self, NORTH, SOUTH, WEST},
     board::BoardPos,
-    piece::get_pawn_attacks_for,
+    piece::{self, get_pawn_attacks_for},
     Board,
     Color::{self, *},
     Piece, Square,
@@ -26,6 +26,7 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
 
     add_pawn_moves(board, all_pieces, atk_color, opp_color, &mut moves);
     add_king_moves(board, all_pieces, opp_color, &mut moves);
+    add_knight_moves(board, &mut moves);
 
     return moves;
 }
@@ -128,17 +129,36 @@ fn add_king_moves(board: &Board, all_pieces: u64, opp_color: Color, moves: &mut 
         moves.push(Move::new_castle(src, dst));
     };
 
+    // TODO: Check if it's actually whites turn
     if board.can_white_castle_queen_side {
         castle(1008806316530991104, &[B1, C1, D1, E1], E1, C1);
     }
     if board.can_white_castle_king_side {
         castle(6917529027641081856, &[E1, F1, G1], E1, G1);
     }
+
+    // TODO: Check if it's actually blacks turn
     if board.can_black_castle_queen_side {
         castle(14, &[B8, C8, D8, E8], E8, C8);
     }
     if board.can_black_castle_king_side {
         castle(96, &[E8, F8, G8], E8, G8);
+    }
+}
+
+fn add_knight_moves(board: &Board, moves: &mut Vec<Move>) {
+    if board.is_whites_turn {
+        for src_i in SetBitsIter(board.knights[White]) {
+            for dst_i in SetBitsIter(piece::get_knight_attacks_for(src_i)) {
+                moves.push(Move::new(src_i, dst_i, Piece::Knight));
+            }
+        }
+    } else {
+        for src_i in SetBitsIter(board.knights[Black]) {
+            for dst_i in SetBitsIter(piece::get_knight_attacks_for(src_i)) {
+                moves.push(Move::new(src_i, dst_i, Piece::Knight));
+            }
+        }
     }
 }
 
@@ -538,6 +558,88 @@ mod tests {
 
             assert_moves_eq(&all_moves(&board), &[]);
         }
+    }
+
+    #[test]
+    fn white_knight() {
+        let mut board = Board::new_empty();
+        board.set(B1, White, Knight);
+        board.set(F3, White, Knight);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(B1, A3, Knight),
+                Move::new(B1, C3, Knight),
+                Move::new(B1, D2, Knight),
+                Move::new(F3, D2, Knight),
+                Move::new(F3, D4, Knight),
+                Move::new(F3, E1, Knight),
+                Move::new(F3, E5, Knight),
+                Move::new(F3, G1, Knight),
+                Move::new(F3, G5, Knight),
+                Move::new(F3, H2, Knight),
+                Move::new(F3, H4, Knight),
+            ],
+        );
+    }
+
+    #[test]
+    fn white_knight_only_white() {
+        let mut board = Board::new_empty();
+        board.set(B1, White, Knight);
+        board.set(F3, Black, Knight);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(B1, A3, Knight),
+                Move::new(B1, C3, Knight),
+                Move::new(B1, D2, Knight),
+            ],
+        );
+    }
+
+    #[test]
+    fn black_knight() {
+        let mut board = Board::new_empty();
+        board.is_whites_turn = false;
+        board.set(C6, Black, Knight);
+        board.set(G8, Black, Knight);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(C6, A5, Knight),
+                Move::new(C6, A7, Knight),
+                Move::new(C6, B4, Knight),
+                Move::new(C6, B8, Knight),
+                Move::new(C6, D4, Knight),
+                Move::new(C6, D8, Knight),
+                Move::new(C6, E5, Knight),
+                Move::new(C6, E7, Knight),
+                Move::new(G8, E7, Knight),
+                Move::new(G8, F6, Knight),
+                Move::new(G8, H6, Knight),
+            ],
+        );
+    }
+
+    #[test]
+    fn black_knight_only_black() {
+        let mut board = Board::new_empty();
+        board.is_whites_turn = false;
+        board.set(C6, White, Knight);
+        board.set(G8, Black, Knight);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(G8, E7, Knight),
+                Move::new(G8, F6, Knight),
+                Move::new(G8, H6, Knight),
+            ],
+        );
     }
 
     fn assert_moves_eq(left: &[Move], right: &[Move]) {
