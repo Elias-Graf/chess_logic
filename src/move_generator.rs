@@ -21,13 +21,19 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
         true => Color::White,
         false => Color::Black,
     };
+    let opp_color = friendly_color.opposing();
     let friendly_occupancies = board.bishops[friendly_color]
         | board.king[friendly_color]
         | board.knights[friendly_color]
         | board.pawns[friendly_color]
         | board.queens[friendly_color]
         | board.rooks[friendly_color];
-    let opp_color = friendly_color.opposing();
+    let opp_occupancies = board.bishops[opp_color]
+        | board.king[opp_color]
+        | board.knights[opp_color]
+        | board.pawns[opp_color]
+        | board.queens[opp_color]
+        | board.rooks[opp_color];
 
     let mut moves = Vec::new();
 
@@ -37,8 +43,8 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
     add_pawn_moves(
         board,
         all_occupancies,
+        opp_occupancies,
         friendly_color,
-        opp_color,
         &mut moves,
     );
     add_rook_moves(board, all_occupancies, friendly_occupancies, &mut moves);
@@ -117,25 +123,25 @@ fn add_knight_moves(board: &Board, moves: &mut Vec<Move>) {
 
 fn add_pawn_moves(
     board: &Board,
-    all_pieces: u64,
-    atk_color: Color,
-    opp_color: Color,
+    all_occupancies: u64,
+    opp_occupancies: u64,
+    friendly_color: Color,
     moves: &mut Vec<Move>,
 ) {
     let (dir, can_do_double_push, is_prom): (_, fn(usize) -> bool, fn(usize) -> bool) =
-        match atk_color {
+        match friendly_color {
             Black => (SOUTH as i8, can_black_do_dbl_push, is_black_prom),
             White => (-(NORTH as i8), can_white_do_dbl_push, is_white_prom),
         };
 
-    let pawns = board.pawns[atk_color];
+    let pawns = board.pawns[friendly_color];
 
     for src_i in SetBitsIter(pawns) {
         let dst_i = (src_i as i8 + dir) as usize;
 
         if is_prom(dst_i) {
             // Promotions
-            if !bit_board::is_bit_set(all_pieces, dst_i) {
+            if !bit_board::is_bit_set(all_occupancies, dst_i) {
                 moves.push(Move::new_prom(src_i, dst_i, Piece::Bishop));
                 moves.push(Move::new_prom(src_i, dst_i, Piece::Knight));
                 moves.push(Move::new_prom(src_i, dst_i, Piece::Queen));
@@ -143,7 +149,7 @@ fn add_pawn_moves(
             }
 
             // Capturing promotions
-            let captures = get_pawn_attacks_for(src_i, &atk_color) & board.pawns[opp_color];
+            let captures = get_pawn_attacks_for(src_i, &friendly_color) & opp_occupancies;
             for capture in SetBitsIter(captures) {
                 moves.push(Move::new_prom(src_i, capture, Piece::Bishop));
                 moves.push(Move::new_prom(src_i, capture, Piece::Knight));
@@ -152,21 +158,22 @@ fn add_pawn_moves(
             }
         } else {
             // Push
-            if !bit_board::is_bit_set(all_pieces, dst_i) {
+            if !bit_board::is_bit_set(all_occupancies, dst_i) {
                 moves.push(Move::new(src_i, dst_i, Piece::Pawn));
 
                 // Double push
                 if can_do_double_push(src_i) {
                     let dst_idx = (src_i as i8 + dir * 2) as usize;
 
-                    if !bit_board::is_bit_set(all_pieces, dst_idx) {
+                    if !bit_board::is_bit_set(all_occupancies, dst_idx) {
                         moves.push(Move::new(src_i, dst_idx, Piece::Pawn));
                     }
                 }
             }
 
             // Captures
-            let captures = get_pawn_attacks_for(src_i, &atk_color) & board.pawns[opp_color];
+            let captures = get_pawn_attacks_for(src_i, &friendly_color)
+                & board.pawns[friendly_color.opposing()];
             for capture in SetBitsIter(captures) {
                 moves.push(Move::new(src_i, capture, Piece::Pawn));
             }
@@ -174,7 +181,7 @@ fn add_pawn_moves(
             // En passant
             if let Some(en_passant_target_idx) = board.en_passant_target_idx {
                 if bit_board::is_bit_set(
-                    get_pawn_attacks_for(src_i, &atk_color),
+                    get_pawn_attacks_for(src_i, &friendly_color),
                     en_passant_target_idx,
                 ) {
                     moves.push(Move::new_en_pass(src_i, en_passant_target_idx));
@@ -324,24 +331,14 @@ mod tests {
         for i in 9..15usize {
             let mut board = Board::new_empty();
             board.set(i, Color::White, Piece::Pawn);
-            board.set(i - bit_board::NO_WE, Color::Black, Piece::Pawn);
-            board.set(i - bit_board::NO_EA, Color::Black, Piece::Pawn);
 
             assert_moves_eq(
                 &all_moves(&board),
                 &[
-                    Move::new_prom(i, i - bit_board::NO_WE, Piece::Bishop),
-                    Move::new_prom(i, i - bit_board::NO_WE, Piece::Knight),
-                    Move::new_prom(i, i - bit_board::NO_WE, Piece::Queen),
-                    Move::new_prom(i, i - bit_board::NO_WE, Piece::Rook),
                     Move::new_prom(i, i - bit_board::NORTH, Piece::Bishop),
                     Move::new_prom(i, i - bit_board::NORTH, Piece::Knight),
                     Move::new_prom(i, i - bit_board::NORTH, Piece::Queen),
                     Move::new_prom(i, i - bit_board::NORTH, Piece::Rook),
-                    Move::new_prom(i, i - bit_board::NO_EA, Piece::Bishop),
-                    Move::new_prom(i, i - bit_board::NO_EA, Piece::Knight),
-                    Move::new_prom(i, i - bit_board::NO_EA, Piece::Queen),
-                    Move::new_prom(i, i - bit_board::NO_EA, Piece::Rook),
                 ],
             );
         }
@@ -364,24 +361,14 @@ mod tests {
             let mut board = Board::new_empty();
             board.is_whites_turn = false;
             board.set(i, Color::Black, Piece::Pawn);
-            board.set(i + bit_board::SO_WE, Color::White, Piece::Pawn);
-            board.set(i + bit_board::SO_EA, Color::White, Piece::Pawn);
 
             assert_moves_eq(
                 &all_moves(&board),
                 &[
-                    Move::new_prom(i, i + bit_board::SO_WE, Piece::Bishop),
-                    Move::new_prom(i, i + bit_board::SO_WE, Piece::Knight),
-                    Move::new_prom(i, i + bit_board::SO_WE, Piece::Queen),
-                    Move::new_prom(i, i + bit_board::SO_WE, Piece::Rook),
                     Move::new_prom(i, i + bit_board::SOUTH as usize, Piece::Bishop),
                     Move::new_prom(i, i + bit_board::SOUTH as usize, Piece::Knight),
                     Move::new_prom(i, i + bit_board::SOUTH as usize, Piece::Queen),
                     Move::new_prom(i, i + bit_board::SOUTH as usize, Piece::Rook),
-                    Move::new_prom(i, i + bit_board::SO_EA, Piece::Bishop),
-                    Move::new_prom(i, i + bit_board::SO_EA, Piece::Knight),
-                    Move::new_prom(i, i + bit_board::SO_EA, Piece::Queen),
-                    Move::new_prom(i, i + bit_board::SO_EA, Piece::Rook),
                 ],
             );
         }
@@ -451,6 +438,61 @@ mod tests {
                 Move::new(B6, B5, Piece::Pawn),
                 Move::new(B6, A5, Piece::Pawn),
                 Move::new(B6, C5, Piece::Pawn),
+            ],
+        );
+    }
+
+    #[test]
+    fn white_pawn_capture_promotion() {
+        let mut board = Board::new_empty();
+        board.set(A8, Black, Rook);
+        board.set(C8, Black, Queen);
+        board.set(B7, White, Pawn);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new_prom(B7, A8, Bishop),
+                Move::new_prom(B7, A8, Knight),
+                Move::new_prom(B7, A8, Queen),
+                Move::new_prom(B7, A8, Rook),
+                Move::new_prom(B7, B8, Bishop),
+                Move::new_prom(B7, B8, Knight),
+                Move::new_prom(B7, B8, Queen),
+                Move::new_prom(B7, B8, Rook),
+                Move::new_prom(B7, C8, Bishop),
+                Move::new_prom(B7, C8, Knight),
+                Move::new_prom(B7, C8, Queen),
+                Move::new_prom(B7, C8, Rook),
+            ],
+        );
+    }
+
+    #[test]
+    fn black_pawn_capture_promotion() {
+        let mut board = Board::new_empty();
+        board.is_whites_turn = false;
+        board.set(B2, Black, Pawn);
+        board.set(A1, White, Rook);
+        board.set(C1, White, Bishop);
+
+        println!("{}", board);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new_prom(B2, A1, Bishop),
+                Move::new_prom(B2, A1, Knight),
+                Move::new_prom(B2, A1, Queen),
+                Move::new_prom(B2, A1, Rook),
+                Move::new_prom(B2, B1, Bishop),
+                Move::new_prom(B2, B1, Knight),
+                Move::new_prom(B2, B1, Queen),
+                Move::new_prom(B2, B1, Rook),
+                Move::new_prom(B2, C1, Bishop),
+                Move::new_prom(B2, C1, Knight),
+                Move::new_prom(B2, C1, Queen),
+                Move::new_prom(B2, C1, Rook),
             ],
         );
     }
