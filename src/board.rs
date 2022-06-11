@@ -87,7 +87,7 @@ impl Board {
     /// Combines all bit boards into a single one.
     ///
     /// This is achieved using the `|` (bitwise or) operator.
-    pub fn all_pieces(&self) -> u64 {
+    pub fn all_occupancies(&self) -> u64 {
         self.bishops[Color::Black]
             | self.king[Color::Black]
             | self.knights[Color::Black]
@@ -320,7 +320,7 @@ impl Board {
         // We can see that the bit on E5 is set on both boards, thus the square
         // D6 can be attacked by the white pawn on E5.
 
-        let all_pieces = self.all_pieces();
+        let all_pieces = self.all_occupancies();
 
         if bit_board::has_set_bits(
             piece::get_bishop_attacks_for(pos, all_pieces) & self.bishops[*atk_color],
