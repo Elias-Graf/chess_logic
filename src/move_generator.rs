@@ -1,12 +1,9 @@
-use std::{
-    fmt::{Debug, Display},
-    ops::{ControlFlow, Sub},
-};
+use std::fmt::{Debug, Display};
 
 use crate::{
-    bit_board::{self, NORTH, SOUTH, WEST},
+    bit_board::{self, NORTH, SOUTH},
     board::BoardPos,
-    piece::{self, get_pawn_attacks_for},
+    piece::{self},
     Board,
     Color::{self, *},
     Piece, Square,
@@ -37,7 +34,13 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
 
     let mut moves = Vec::new();
 
-    add_bishop_moves(board, all_occupancies, friendly_occupancies, &mut moves);
+    add_bishop_moves(
+        board,
+        friendly_color,
+        all_occupancies,
+        friendly_occupancies,
+        &mut moves,
+    );
     add_king_moves(board, all_occupancies, opp_color, &mut moves);
     add_knight_moves(board, &mut moves);
     add_pawn_moves(
@@ -47,37 +50,44 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
         friendly_color,
         &mut moves,
     );
-    add_rook_moves(board, all_occupancies, friendly_occupancies, &mut moves);
+    add_queen_moves(
+        board,
+        friendly_color,
+        all_occupancies,
+        friendly_occupancies,
+        &mut moves,
+    );
+    add_rook_moves(
+        board,
+        friendly_color,
+        all_occupancies,
+        friendly_occupancies,
+        &mut moves,
+    );
 
     return moves;
 }
 
 fn add_bishop_moves(
     board: &Board,
+    friendly_color: Color,
     all_occupancies: u64,
     friendly_occupancies: u64,
     moves: &mut Vec<Move>,
 ) {
-    if board.is_whites_turn {
-        for src_i in SetBitsIter(board.bishops[White]) {
-            for dst_i in SetBitsIter(
-                piece::get_bishop_attacks_for(src_i, all_occupancies) & !friendly_occupancies,
-            ) {
-                moves.push(Move::new(src_i, dst_i, Bishop));
-            }
-        }
-    } else {
-        for src_i in SetBitsIter(board.bishops[Black]) {
-            for dst_i in SetBitsIter(piece::get_bishop_attacks_for(src_i, all_occupancies)) {
-                moves.push(Move::new(src_i, dst_i, Bishop));
-            }
-        }
-    }
+    add_sliding_moves(
+        board.bishops[friendly_color],
+        all_occupancies,
+        piece::get_bishop_attacks_for,
+        friendly_occupancies,
+        Bishop,
+        moves,
+    );
 }
 
-fn add_king_moves(board: &Board, all_pieces: u64, opp_color: Color, moves: &mut Vec<Move>) {
+fn add_king_moves(board: &Board, all_occupancies: u64, opp_color: Color, moves: &mut Vec<Move>) {
     let mut castle = |required_clear_mask: u64, not_atk: &[Square], src: Square, dst: Square| {
-        if bit_board::has_set_bits(all_pieces & required_clear_mask) {
+        if bit_board::has_set_bits(all_occupancies & required_clear_mask) {
             return;
         }
 
@@ -149,7 +159,7 @@ fn add_pawn_moves(
             }
 
             // Capturing promotions
-            let captures = get_pawn_attacks_for(src_i, &friendly_color) & opp_occupancies;
+            let captures = piece::get_pawn_attacks_for(src_i, &friendly_color) & opp_occupancies;
             for capture in SetBitsIter(captures) {
                 moves.push(Move::new_prom(src_i, capture, Piece::Bishop));
                 moves.push(Move::new_prom(src_i, capture, Piece::Knight));
@@ -172,7 +182,7 @@ fn add_pawn_moves(
             }
 
             // Captures
-            let captures = get_pawn_attacks_for(src_i, &friendly_color)
+            let captures = piece::get_pawn_attacks_for(src_i, &friendly_color)
                 & board.pawns[friendly_color.opposing()];
             for capture in SetBitsIter(captures) {
                 moves.push(Move::new(src_i, capture, Piece::Pawn));
@@ -181,7 +191,7 @@ fn add_pawn_moves(
             // En passant
             if let Some(en_passant_target_idx) = board.en_passant_target_idx {
                 if bit_board::is_bit_set(
-                    get_pawn_attacks_for(src_i, &friendly_color),
+                    piece::get_pawn_attacks_for(src_i, &friendly_color),
                     en_passant_target_idx,
                 ) {
                     moves.push(Move::new_en_pass(src_i, en_passant_target_idx));
@@ -207,24 +217,38 @@ fn add_pawn_moves(
     }
 }
 
-fn add_rook_moves(board: &Board, all_pieces: u64, friendly_pieces: u64, moves: &mut Vec<Move>) {
-    if board.is_whites_turn {
-        for src_i in SetBitsIter(board.rooks[White]) {
-            for dst_i in
-                SetBitsIter(piece::get_rook_attacks_for(src_i, all_pieces) & !friendly_pieces)
-            {
-                moves.push(Move::new(src_i, dst_i, Rook));
-            }
-        }
-    } else {
-        for src_i in SetBitsIter(board.rooks[Black]) {
-            for dst_i in
-                SetBitsIter(piece::get_rook_attacks_for(src_i, all_pieces) & !friendly_pieces)
-            {
-                moves.push(Move::new(src_i, dst_i, Rook));
-            }
-        }
-    }
+fn add_queen_moves(
+    board: &Board,
+    friendly_color: Color,
+    all_occupancies: u64,
+    friendly_occupancies: u64,
+    moves: &mut Vec<Move>,
+) {
+    add_sliding_moves(
+        board.queens[friendly_color],
+        all_occupancies,
+        piece::get_queen_attacks_for,
+        friendly_occupancies,
+        Queen,
+        moves,
+    );
+}
+
+fn add_rook_moves(
+    board: &Board,
+    friendly_color: Color,
+    all_occupancies: u64,
+    friendly_occupancies: u64,
+    moves: &mut Vec<Move>,
+) {
+    add_sliding_moves(
+        board.rooks[friendly_color],
+        all_occupancies,
+        piece::get_rook_attacks_for,
+        friendly_occupancies,
+        Rook,
+        moves,
+    );
 }
 
 struct SetBitsIter(u64);
@@ -251,6 +275,21 @@ fn squares_attacked_by(squares: &[Square], board: &Board, color: Color) -> bool 
     }
 
     false
+}
+
+fn add_sliding_moves(
+    pieces: u64,
+    all_occupancies: u64,
+    get_attacks: fn(i: usize, blockers: u64) -> u64,
+    friendly_occupancies: u64,
+    piece_type: Piece,
+    moves: &mut Vec<Move>,
+) {
+    for src_i in SetBitsIter(pieces) {
+        for dst_i in SetBitsIter(get_attacks(src_i, all_occupancies) & !friendly_occupancies) {
+            moves.push(Move::new(src_i, dst_i, piece_type));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -541,6 +580,7 @@ mod tests {
         let mut expected_moves = Vec::new();
         add_rook_moves(
             &board,
+            White,
             board.all_occupancies(),
             board.king[White],
             &mut expected_moves,
@@ -557,6 +597,7 @@ mod tests {
         let mut expected_moves = Vec::new();
         add_rook_moves(
             &board,
+            Black,
             board.all_occupancies(),
             board.king[Black],
             &mut expected_moves,
@@ -577,6 +618,7 @@ mod tests {
             let mut rook_moves = Vec::new();
             add_rook_moves(
                 &board,
+                White,
                 board.all_occupancies(),
                 board.king[White],
                 &mut rook_moves,
@@ -597,6 +639,7 @@ mod tests {
             let mut rook_moves = Vec::new();
             add_rook_moves(
                 &board,
+                Black,
                 board.all_occupancies(),
                 board.king[Black],
                 &mut rook_moves,
@@ -617,6 +660,7 @@ mod tests {
             let mut rook_moves = Vec::new();
             add_rook_moves(
                 &board,
+                White,
                 board.all_occupancies(),
                 board.king[White],
                 &mut rook_moves,
@@ -637,6 +681,7 @@ mod tests {
             let mut rook_moves = Vec::new();
             add_rook_moves(
                 &board,
+                Black,
                 board.all_occupancies(),
                 board.king[Black],
                 &mut rook_moves,
@@ -653,6 +698,7 @@ mod tests {
         let mut expected_moves = Vec::new();
         add_rook_moves(
             &board,
+            White,
             board.all_occupancies(),
             board.king[White],
             &mut expected_moves,
@@ -669,6 +715,7 @@ mod tests {
         let mut expected_moves = Vec::new();
         add_rook_moves(
             &board,
+            Black,
             board.all_occupancies(),
             board.king[Black],
             &mut expected_moves,
@@ -689,6 +736,7 @@ mod tests {
             let mut rook_moves = Vec::new();
             add_rook_moves(
                 &board,
+                White,
                 board.all_occupancies(),
                 board.king[White],
                 &mut rook_moves,
@@ -709,6 +757,7 @@ mod tests {
             let mut rook_moves = Vec::new();
             add_rook_moves(
                 &board,
+                Black,
                 board.all_occupancies(),
                 board.king[Black],
                 &mut rook_moves,
@@ -729,6 +778,7 @@ mod tests {
             let mut rook_moves = Vec::new();
             add_rook_moves(
                 &board,
+                White,
                 board.all_occupancies(),
                 board.king[White],
                 &mut rook_moves,
@@ -749,6 +799,7 @@ mod tests {
             let mut rook_moves = Vec::new();
             add_rook_moves(
                 &board,
+                Black,
                 board.all_occupancies(),
                 board.king[Black],
                 &mut rook_moves,
@@ -930,6 +981,135 @@ mod tests {
                 Move::new(C2, D3, Bishop),
                 Move::new(C2, B1, Bishop),
                 Move::new(C2, D1, Bishop),
+            ],
+        );
+    }
+
+    #[test]
+    fn white_queen() {
+        let mut board = Board::new_empty();
+        board.set(D1, White, Queen);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(D1, A1, Queen),
+                Move::new(D1, A4, Queen),
+                Move::new(D1, B1, Queen),
+                Move::new(D1, B3, Queen),
+                Move::new(D1, C1, Queen),
+                Move::new(D1, C2, Queen),
+                Move::new(D1, D2, Queen),
+                Move::new(D1, D3, Queen),
+                Move::new(D1, D4, Queen),
+                Move::new(D1, D5, Queen),
+                Move::new(D1, D6, Queen),
+                Move::new(D1, D7, Queen),
+                Move::new(D1, D8, Queen),
+                Move::new(D1, E1, Queen),
+                Move::new(D1, E2, Queen),
+                Move::new(D1, F1, Queen),
+                Move::new(D1, F3, Queen),
+                Move::new(D1, G1, Queen),
+                Move::new(D1, G4, Queen),
+                Move::new(D1, H1, Queen),
+                Move::new(D1, H5, Queen),
+            ],
+        );
+    }
+
+    #[test]
+    fn black_queen() {
+        let mut board = Board::new_empty();
+        board.is_whites_turn = false;
+        board.set(D8, Black, Queen);
+
+        println!("{}", board);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(D8, A5, Queen),
+                Move::new(D8, A8, Queen),
+                Move::new(D8, B6, Queen),
+                Move::new(D8, B8, Queen),
+                Move::new(D8, C7, Queen),
+                Move::new(D8, C8, Queen),
+                Move::new(D8, D1, Queen),
+                Move::new(D8, D2, Queen),
+                Move::new(D8, D3, Queen),
+                Move::new(D8, D4, Queen),
+                Move::new(D8, D5, Queen),
+                Move::new(D8, D6, Queen),
+                Move::new(D8, D7, Queen),
+                Move::new(D8, E7, Queen),
+                Move::new(D8, E8, Queen),
+                Move::new(D8, F6, Queen),
+                Move::new(D8, F8, Queen),
+                Move::new(D8, G5, Queen),
+                Move::new(D8, G8, Queen),
+                Move::new(D8, H4, Queen),
+                Move::new(D8, H8, Queen),
+            ],
+        );
+    }
+
+    #[test]
+    fn black_queen_blocked() {
+        let mut board = Board::new_empty();
+        board.is_whites_turn = false;
+        board.set(H4, Black, Queen);
+        board.set(H3, Black, Pawn);
+        board.set(E4, White, Queen);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(H3, H2, Pawn),
+                Move::new(H4, D8, Queen),
+                Move::new(H4, E1, Queen),
+                Move::new(H4, E4, Queen),
+                Move::new(H4, E7, Queen),
+                Move::new(H4, F2, Queen),
+                Move::new(H4, F4, Queen),
+                Move::new(H4, F6, Queen),
+                Move::new(H4, G3, Queen),
+                Move::new(H4, G4, Queen),
+                Move::new(H4, G5, Queen),
+                Move::new(H4, H5, Queen),
+                Move::new(H4, H6, Queen),
+                Move::new(H4, H7, Queen),
+                Move::new(H4, H8, Queen),
+            ],
+        );
+    }
+
+    #[test]
+    fn white_queen_blocked() {
+        let mut board = Board::new_empty();
+        board.set(A4, White, Queen);
+        board.set(A5, White, Pawn);
+        board.set(C6, Black, Queen);
+
+        assert_moves_eq(
+            &all_moves(&board),
+            &[
+                Move::new(A4, A1, Queen),
+                Move::new(A4, A2, Queen),
+                Move::new(A4, A3, Queen),
+                Move::new(A4, B3, Queen),
+                Move::new(A4, B4, Queen),
+                Move::new(A4, B5, Queen),
+                Move::new(A4, C2, Queen),
+                Move::new(A4, C4, Queen),
+                Move::new(A4, C6, Queen),
+                Move::new(A4, D1, Queen),
+                Move::new(A4, D4, Queen),
+                Move::new(A4, E4, Queen),
+                Move::new(A4, F4, Queen),
+                Move::new(A4, G4, Queen),
+                Move::new(A4, H4, Queen),
+                Move::new(A5, A6, Pawn),
             ],
         );
     }
