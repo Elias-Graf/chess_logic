@@ -68,21 +68,17 @@ impl Board {
     }
 
     /// Clear (remove) a piece on the specified location
-    ///
-    /// This function is not very performant and more of a pretty interface. If
-    /// speed is important, one might consider accessing the piece fields (bit boards)
-    /// directly.
-    pub fn clear(&mut self, pos: impl BoardPos) {
-        let i = pos.into();
+    pub fn clear(&mut self, color: Color, piece: Piece, pos: impl BoardPos) {
+        let bit_board = match piece {
+            Piece::Bishop => &mut self.bishops,
+            Piece::King => &mut self.king,
+            Piece::Knight => &mut self.knights,
+            Piece::Pawn => &mut self.pawns,
+            Piece::Queen => &mut self.queens,
+            Piece::Rook => &mut self.rooks,
+        };
 
-        for color in [Color::Black, Color::White] {
-            bit_board::clear_bit(&mut self.bishops[color], i);
-            bit_board::clear_bit(&mut self.king[color], i);
-            bit_board::clear_bit(&mut self.knights[color], i);
-            bit_board::clear_bit(&mut self.pawns[color], i);
-            bit_board::clear_bit(&mut self.queens[color], i);
-            bit_board::clear_bit(&mut self.rooks[color], i);
-        }
+        bit_board::clear_bit(&mut bit_board[color], pos.into());
     }
 
     pub fn do_move(&mut self, mv: Move) {
@@ -91,9 +87,8 @@ impl Board {
 
     /// Get the pice ([`PieceInstance`]) on the specified location
     ///
-    /// This function is not very performant and more of a pretty interface. If
-    /// speed is important, one might consider accessing the piece fields (bit boards)
-    /// directly.
+    /// In case you know what piece of what color you are looking for, you should
+    /// access the bit boards directly.
     pub fn get(&self, pos: impl BoardPos) -> Option<PieceInstance> {
         let i = pos.into();
 
@@ -219,51 +214,47 @@ impl Board {
         board.can_white_castle_queen_side = true;
 
         // Standard chess formation:
-        board.set(0, Color::Black, Piece::Rook);
-        board.set(1, Color::Black, Piece::Knight);
-        board.set(2, Color::Black, Piece::Bishop);
-        board.set(3, Color::Black, Piece::Queen);
-        board.set(4, Color::Black, Piece::King);
-        board.set(5, Color::Black, Piece::Bishop);
-        board.set(6, Color::Black, Piece::Knight);
-        board.set(7, Color::Black, Piece::Rook);
+        board.set(Color::Black, Piece::Rook, 0);
+        board.set(Color::Black, Piece::Knight, 1);
+        board.set(Color::Black, Piece::Bishop, 2);
+        board.set(Color::Black, Piece::Queen, 3);
+        board.set(Color::Black, Piece::King, 4);
+        board.set(Color::Black, Piece::Bishop, 5);
+        board.set(Color::Black, Piece::Knight, 6);
+        board.set(Color::Black, Piece::Rook, 7);
 
-        board.set(8, Color::Black, Piece::Pawn);
-        board.set(9, Color::Black, Piece::Pawn);
-        board.set(10, Color::Black, Piece::Pawn);
-        board.set(11, Color::Black, Piece::Pawn);
-        board.set(12, Color::Black, Piece::Pawn);
-        board.set(13, Color::Black, Piece::Pawn);
-        board.set(14, Color::Black, Piece::Pawn);
-        board.set(15, Color::Black, Piece::Pawn);
+        board.set(Color::Black, Piece::Pawn, 8);
+        board.set(Color::Black, Piece::Pawn, 9);
+        board.set(Color::Black, Piece::Pawn, 10);
+        board.set(Color::Black, Piece::Pawn, 11);
+        board.set(Color::Black, Piece::Pawn, 12);
+        board.set(Color::Black, Piece::Pawn, 13);
+        board.set(Color::Black, Piece::Pawn, 14);
+        board.set(Color::Black, Piece::Pawn, 15);
 
-        board.set(48, Color::White, Piece::Pawn);
-        board.set(49, Color::White, Piece::Pawn);
-        board.set(50, Color::White, Piece::Pawn);
-        board.set(51, Color::White, Piece::Pawn);
-        board.set(52, Color::White, Piece::Pawn);
-        board.set(53, Color::White, Piece::Pawn);
-        board.set(54, Color::White, Piece::Pawn);
-        board.set(55, Color::White, Piece::Pawn);
+        board.set(Color::White, Piece::Pawn, 48);
+        board.set(Color::White, Piece::Pawn, 49);
+        board.set(Color::White, Piece::Pawn, 50);
+        board.set(Color::White, Piece::Pawn, 51);
+        board.set(Color::White, Piece::Pawn, 52);
+        board.set(Color::White, Piece::Pawn, 53);
+        board.set(Color::White, Piece::Pawn, 54);
+        board.set(Color::White, Piece::Pawn, 55);
 
-        board.set(56, Color::White, Piece::Rook);
-        board.set(57, Color::White, Piece::Knight);
-        board.set(58, Color::White, Piece::Bishop);
-        board.set(59, Color::White, Piece::Queen);
-        board.set(60, Color::White, Piece::King);
-        board.set(61, Color::White, Piece::Bishop);
-        board.set(62, Color::White, Piece::Knight);
-        board.set(63, Color::White, Piece::Rook);
+        board.set(Color::White, Piece::Rook, 56);
+        board.set(Color::White, Piece::Knight, 57);
+        board.set(Color::White, Piece::Bishop, 58);
+        board.set(Color::White, Piece::Queen, 59);
+        board.set(Color::White, Piece::King, 60);
+        board.set(Color::White, Piece::Bishop, 61);
+        board.set(Color::White, Piece::Knight, 62);
+        board.set(Color::White, Piece::Rook, 63);
 
         board
     }
 
     /// Set (add) a piece on the specified location
-    ///
-    /// This function is not very performant and more of a pretty interface. If
-    /// speed is important, one might consider accessing the piece fields (bit boards)
-    /// directly.
-    pub fn set(&mut self, pos: impl BoardPos, color: Color, piece: Piece) {
+    pub fn set(&mut self, color: Color, piece: Piece, pos: impl BoardPos) {
         let i = pos.into();
 
         match piece {
@@ -350,7 +341,7 @@ mod tests {
     fn is_pos_attacked_by_bishop_no_blockers() {
         for color in [Color::Black, Color::White] {
             let mut board = Board::new_empty();
-            board.set(F4, color.clone(), Piece::Bishop);
+            board.set(color.clone(), Piece::Bishop, F4);
 
             for pos in [B8, C7, D6, E5, H6, G5, E3, D2, C1, G3, H2] {
                 assert_eq!(board.is_pos_attacked_by(pos, &color), true, "{:?}", &color);
@@ -364,7 +355,7 @@ mod tests {
 
         for atk_color in &[Color::Black, Color::White] {
             let mut board = Board::new_empty();
-            board.set(B3, atk_color.clone(), Piece::Bishop);
+            board.set(atk_color.clone(), Piece::Bishop, B3);
 
             let var_name: [(Color, Piece, &[Square]); 12] = [
                 // Opposing blocking pieces
@@ -385,7 +376,7 @@ mod tests {
             ];
             for (blocking_color, blocking_piece, blocked_squares) in var_name {
                 let mut board = board.clone();
-                board.set(D5, blocking_color, blocking_piece);
+                board.set(blocking_color, blocking_piece, D5);
 
                 for pos in blocked_squares {
                     assert_eq!(
@@ -405,7 +396,7 @@ mod tests {
     fn is_pos_attacked_by_king() {
         for color in [Color::Black, Color::White] {
             let mut board = Board::new_empty();
-            board.set(F7, color.clone(), Piece::King);
+            board.set(color.clone(), Piece::King, F7);
 
             for pos in [E8, F8, G8, E7, G7, E6, F6, G6] {
                 assert_eq!(board.is_pos_attacked_by(pos, &color), true, "{:?}", &color);
@@ -417,7 +408,7 @@ mod tests {
     fn is_pos_attacked_by_knight() {
         for color in [Color::Black, Color::White] {
             let mut board = Board::new_empty();
-            board.set(B4, color.clone(), Piece::Knight);
+            board.set(color.clone(), Piece::Knight, B4);
 
             for pos in [A6, C6, D5, D3, C2, A2] {
                 assert_eq!(board.is_pos_attacked_by(pos, &color), true, "{:?}", &color);
@@ -428,7 +419,7 @@ mod tests {
     #[test]
     fn is_pos_attacked_attacked_by_white_pawn() {
         let mut board = Board::new_empty();
-        board.set(E5, Color::White, Piece::Pawn);
+        board.set(Color::White, Piece::Pawn, E5);
 
         assert_eq!(board.is_pos_attacked_by(D6, &Color::White), true);
         assert_eq!(board.is_pos_attacked_by(F6, &Color::White), true);
@@ -437,7 +428,7 @@ mod tests {
     #[test]
     fn is_pos_attacked_by_black_pawn() {
         let mut board = Board::new_empty();
-        board.set(C6, Color::Black, Piece::Pawn);
+        board.set(Color::Black, Piece::Pawn, C6);
 
         assert_eq!(board.is_pos_attacked_by(B5, &Color::Black), true);
         assert_eq!(board.is_pos_attacked_by(D5, &Color::Black), true);
@@ -450,7 +441,7 @@ mod tests {
     fn is_pos_attacked_by_rook_no_blockers() {
         for color in [Color::Black, Color::White] {
             let mut board = Board::new_empty();
-            board.set(G7, color.clone(), Piece::Rook);
+            board.set(color.clone(), Piece::Rook, G7);
 
             for pos in [A7, B7, C7, D7, E7, F7, H7, G8, G6, G5, G4, G3, G2, G1] {
                 assert_eq!(board.is_pos_attacked_by(pos, &color), true, "{:?}", &color);
@@ -464,7 +455,7 @@ mod tests {
 
         for atk_color in &[Color::Black, Color::White] {
             let mut board = Board::new_empty();
-            board.set(D2, atk_color.clone(), Piece::Rook);
+            board.set(atk_color.clone(), Piece::Rook, D2);
 
             let var_name: [(Color, Piece, &[Square]); 12] = [
                 // Opposing blocking pieces
@@ -485,7 +476,7 @@ mod tests {
             ];
             for (blocking_color, blocking_piece, blocked_squares) in var_name {
                 let mut board = board.clone();
-                board.set(D4, blocking_color, blocking_piece);
+                board.set(blocking_color, blocking_piece, D4);
 
                 for pos in blocked_squares {
                     assert_eq!(

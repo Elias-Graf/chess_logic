@@ -306,7 +306,7 @@ mod tests {
     fn white_pawn_push() {
         for (src, dst) in [(A3, A4), (B3, B4)] {
             let mut board = Board::new_empty();
-            board.set(src, Color::White, Piece::Pawn);
+            board.set(Color::White, Piece::Pawn, src);
 
             assert_moves_eq(&all_moves(&board), &vec![Move::new(src, dst, Piece::Pawn)]);
         }
@@ -317,7 +317,7 @@ mod tests {
         for (src, dst) in [(A6, A5), (B6, B5)] {
             let mut board = Board::new_empty();
             board.is_whites_turn = false;
-            board.set(src, Color::Black, Piece::Pawn);
+            board.set(Color::Black, Piece::Pawn, src);
 
             assert_moves_eq(&all_moves(&board), &vec![Move::new(src, dst, Piece::Pawn)]);
         }
@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn white_pawn_double_push() {
         let mut board = Board::new_empty();
-        board.set(A2, Color::White, Piece::Pawn);
+        board.set(Color::White, Piece::Pawn, A2);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -337,7 +337,7 @@ mod tests {
         );
 
         let mut board = Board::new_empty();
-        board.set(B2, Color::White, Piece::Pawn);
+        board.set(Color::White, Piece::Pawn, B2);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -353,7 +353,7 @@ mod tests {
         for src_idx in [usize::from(A7), B7.into()] {
             let mut board = Board::new_empty();
             board.is_whites_turn = false;
-            board.set(src_idx, Color::Black, Piece::Pawn);
+            board.set(Color::Black, Piece::Pawn, src_idx);
 
             assert_moves_eq(
                 &all_moves(&board),
@@ -369,7 +369,7 @@ mod tests {
     fn white_pawn_promotion() {
         for i in 9..15usize {
             let mut board = Board::new_empty();
-            board.set(i, Color::White, Piece::Pawn);
+            board.set(Color::White, Piece::Pawn, i);
 
             assert_moves_eq(
                 &all_moves(&board),
@@ -387,8 +387,8 @@ mod tests {
     fn white_pawn_promotion_blocked() {
         for i in 0..8usize {
             let mut board = Board::new_empty();
-            board.set(i, Color::Black, Piece::Pawn);
-            board.set(i + bit_board::SOUTH, Color::White, Piece::Pawn);
+            board.set(Color::Black, Piece::Pawn, i);
+            board.set(Color::White, Piece::Pawn, i + bit_board::SOUTH);
 
             assert_moves_eq(&all_moves(&board), &[]);
         }
@@ -399,7 +399,7 @@ mod tests {
         for i in 49..54usize {
             let mut board = Board::new_empty();
             board.is_whites_turn = false;
-            board.set(i, Color::Black, Piece::Pawn);
+            board.set(Color::Black, Piece::Pawn, i);
 
             assert_moves_eq(
                 &all_moves(&board),
@@ -418,8 +418,8 @@ mod tests {
         for i in 56..64 {
             let mut board = Board::new_empty();
             board.is_whites_turn = false;
-            board.set(i, Color::White, Piece::Pawn);
-            board.set(i - bit_board::NORTH, Color::Black, Piece::Pawn);
+            board.set(Color::White, Piece::Pawn, i);
+            board.set(Color::Black, Piece::Pawn, i - bit_board::NORTH);
 
             assert_moves_eq(&all_moves(&board), &[]);
         }
@@ -484,9 +484,9 @@ mod tests {
     #[test]
     fn white_pawn_capture_promotion() {
         let mut board = Board::new_empty();
-        board.set(A8, Black, Rook);
-        board.set(C8, Black, Queen);
-        board.set(B7, White, Pawn);
+        board.set(Black, Rook, A8);
+        board.set(Black, Queen, C8);
+        board.set(White, Pawn, B7);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -511,9 +511,9 @@ mod tests {
     fn black_pawn_capture_promotion() {
         let mut board = Board::new_empty();
         board.is_whites_turn = false;
-        board.set(B2, Black, Pawn);
-        board.set(A1, White, Rook);
-        board.set(C1, White, Bishop);
+        board.set(Black, Pawn, B2);
+        board.set(White, Rook, A1);
+        board.set(White, Bishop, C1);
 
         println!("{}", board);
 
@@ -541,8 +541,8 @@ mod tests {
         for i in 24..31 {
             let mut board = Board::new_empty();
             board.en_passant_target_idx = Some(i - bit_board::NORTH);
-            board.set(i, Color::Black, Piece::Pawn);
-            board.set(i + bit_board::EAST, Color::White, Piece::Pawn);
+            board.set(Color::Black, Piece::Pawn, i);
+            board.set(Color::White, Piece::Pawn, i + bit_board::EAST);
 
             assert_moves_eq(
                 &all_moves(&board),
@@ -560,8 +560,8 @@ mod tests {
             let mut board = Board::new_empty();
             board.is_whites_turn = false;
             board.en_passant_target_idx = Some(i + bit_board::SOUTH);
-            board.set(i, Color::White, Piece::Pawn);
-            board.set(i + bit_board::EAST, Color::Black, Piece::Pawn);
+            board.set(Color::White, Piece::Pawn, i);
+            board.set( Color::Black, Piece::Pawn, i + bit_board::EAST);
 
             assert_moves_eq(
                 &all_moves(&board),
@@ -613,7 +613,7 @@ mod tests {
 
         for i in 57..60 {
             let mut board = board.clone();
-            board.set(i, Black, Rook);
+            board.set(Black, Rook, i);
 
             let mut rook_moves = Vec::new();
             add_rook_moves(
@@ -634,7 +634,7 @@ mod tests {
 
         for i in 1..4 {
             let mut board = board.clone();
-            board.set(i, White, Rook);
+            board.set(White, Rook, i);
 
             let mut rook_moves = Vec::new();
             add_rook_moves(
@@ -655,7 +655,7 @@ mod tests {
 
         for i in 57..61 {
             let mut board = board.clone();
-            board.set(i - NORTH, Black, Rook);
+            board.set(Black, Rook, i - NORTH);
 
             let mut rook_moves = Vec::new();
             add_rook_moves(
@@ -676,7 +676,7 @@ mod tests {
 
         for i in 1..5 {
             let mut board = board.clone();
-            board.set(i + SOUTH, White, Rook);
+            board.set(White, Rook, i + SOUTH);
 
             let mut rook_moves = Vec::new();
             add_rook_moves(
@@ -731,7 +731,7 @@ mod tests {
 
         for i in 61..63 {
             let mut board = board.clone();
-            board.set(i, Black, Rook);
+            board.set(Black, Rook, i);
 
             let mut rook_moves = Vec::new();
             add_rook_moves(
@@ -752,7 +752,7 @@ mod tests {
 
         for i in 5..7 {
             let mut board = board.clone();
-            board.set(i, White, Rook);
+            board.set(White, Rook, i);
 
             let mut rook_moves = Vec::new();
             add_rook_moves(
@@ -773,7 +773,7 @@ mod tests {
 
         for i in 60..63 {
             let mut board = board.clone();
-            board.set(i - NORTH, Black, Rook);
+            board.set( Black, Rook, i - NORTH);
 
             let mut rook_moves = Vec::new();
             add_rook_moves(
@@ -794,7 +794,7 @@ mod tests {
 
         for i in 4..7 {
             let mut board = board.clone();
-            board.set(i + SOUTH, White, Rook);
+            board.set( White, Rook, i + SOUTH);
 
             let mut rook_moves = Vec::new();
             add_rook_moves(
@@ -812,8 +812,8 @@ mod tests {
     #[test]
     fn white_knight() {
         let mut board = Board::new_empty();
-        board.set(B1, White, Knight);
-        board.set(F3, White, Knight);
+        board.set(White, Knight, B1);
+        board.set(White, Knight, F3);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -836,8 +836,8 @@ mod tests {
     #[test]
     fn white_knight_only_white() {
         let mut board = Board::new_empty();
-        board.set(B1, White, Knight);
-        board.set(F3, Black, Knight);
+        board.set(White, Knight, B1);
+        board.set(Black, Knight, F3);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -853,8 +853,8 @@ mod tests {
     fn black_knight() {
         let mut board = Board::new_empty();
         board.is_whites_turn = false;
-        board.set(C6, Black, Knight);
-        board.set(G8, Black, Knight);
+        board.set(Black, Knight, C6);
+        board.set(Black, Knight, G8);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -878,8 +878,8 @@ mod tests {
     fn black_knight_only_black() {
         let mut board = Board::new_empty();
         board.is_whites_turn = false;
-        board.set(C6, White, Knight);
-        board.set(G8, Black, Knight);
+        board.set(White, Knight, C6);
+        board.set(Black, Knight, G8);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -894,8 +894,8 @@ mod tests {
     #[test]
     fn white_bishop() {
         let mut board = Board::new_empty();
-        board.set(C1, White, Bishop);
-        board.set(A6, White, Bishop);
+        board.set(White, Bishop, C1);
+        board.set(White, Bishop, A6);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -922,8 +922,8 @@ mod tests {
     fn black_bishop() {
         let mut board = Board::new_empty();
         board.is_whites_turn = false;
-        board.set(F8, Black, Bishop);
-        board.set(H3, Black, Bishop);
+        board.set(Black, Bishop, F8);
+        board.set(Black, Bishop, H3);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -949,9 +949,9 @@ mod tests {
     #[test]
     fn white_bishop_blocked() {
         let mut board = Board::new_empty();
-        board.set(G7, White, Bishop);
-        board.set(H6, White, Pawn);
-        board.set(E5, Black, Bishop);
+        board.set(White, Bishop, G7);
+        board.set(White, Pawn, H6);
+        board.set(Black, Bishop, E5);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -969,9 +969,9 @@ mod tests {
     fn black_bishop_blocked() {
         let mut board = Board::new_empty();
         board.is_whites_turn = false;
-        board.set(C2, Black, Bishop);
-        board.set(B3, White, Bishop);
-        board.set(E4, White, Bishop);
+        board.set(Black, Bishop, C2);
+        board.set(White, Bishop, B3);
+        board.set(White, Bishop, E4);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -988,7 +988,7 @@ mod tests {
     #[test]
     fn white_queen() {
         let mut board = Board::new_empty();
-        board.set(D1, White, Queen);
+        board.set(White, Queen, D1);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -1022,7 +1022,7 @@ mod tests {
     fn black_queen() {
         let mut board = Board::new_empty();
         board.is_whites_turn = false;
-        board.set(D8, Black, Queen);
+        board.set(Black, Queen, D8);
 
         println!("{}", board);
 
@@ -1058,9 +1058,9 @@ mod tests {
     fn black_queen_blocked() {
         let mut board = Board::new_empty();
         board.is_whites_turn = false;
-        board.set(H4, Black, Queen);
-        board.set(H3, Black, Pawn);
-        board.set(E4, White, Queen);
+        board.set(Black, Queen, H4);
+        board.set(Black, Pawn, H3);
+        board.set(White, Queen, E4);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -1087,9 +1087,9 @@ mod tests {
     #[test]
     fn white_queen_blocked() {
         let mut board = Board::new_empty();
-        board.set(A4, White, Queen);
-        board.set(A5, White, Pawn);
-        board.set(C6, Black, Queen);
+        board.set(White, Queen, A4);
+        board.set(White, Pawn, A5);
+        board.set(Black, Queen, C6);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -1117,8 +1117,8 @@ mod tests {
     #[test]
     fn white_rook() {
         let mut board = Board::new_empty();
-        board.set(A1, White, Rook);
-        board.set(H8, White, Rook);
+        board.set(White, Rook, A1);
+        board.set(White, Rook, H8);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -1158,9 +1158,9 @@ mod tests {
     #[test]
     fn white_rook_blocked() {
         let mut board = Board::new_empty();
-        board.set(A1, White, Rook);
-        board.set(A3, White, Pawn);
-        board.set(C1, Black, Rook);
+        board.set(White, Rook, A1);
+        board.set(White, Pawn, A3);
+        board.set(Black, Rook, C1);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -1177,8 +1177,8 @@ mod tests {
     fn black_rook() {
         let mut board = Board::new_empty();
         board.is_whites_turn = false;
-        board.set(A8, Black, Rook);
-        board.set(H1, Black, Rook);
+        board.set(Black, Rook, A8);
+        board.set(Black, Rook, H1);
 
         assert_moves_eq(
             &all_moves(&board),
@@ -1219,9 +1219,9 @@ mod tests {
     fn black_rook_blocked() {
         let mut board = Board::new_empty();
         board.is_whites_turn = false;
-        board.set(H8, Black, Rook);
-        board.set(H6, Black, Pawn);
-        board.set(E8, White, Rook);
+        board.set(Black, Rook, H8);
+        board.set(Black, Pawn, H6);
+        board.set(White, Rook, E8);
 
         assert_moves_eq(
             &all_moves(&board),

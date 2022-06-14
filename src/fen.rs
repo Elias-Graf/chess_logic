@@ -200,7 +200,7 @@ impl Fen for Board {
 
                 let ins: PieceInstance = Fen::from_fen(&c.to_string())?;
 
-                board.set(idx, ins.color, ins.piece);
+                board.set(ins.color, ins.piece, idx);
                 idx += 1;
             }
 
@@ -272,22 +272,22 @@ mod tests {
         let truth = "3B4/k6P/4N1p1/K7/1P3PBp/5P1r/R3P1Pp/8 w - - 0 0";
 
         let mut board = Board::new_empty();
-        board.set(D8, Color::White, Piece::Bishop);
-        board.set(A7, Color::Black, Piece::King);
-        board.set(H7, Color::White, Piece::Pawn);
-        board.set(E6, Color::White, Piece::Knight);
-        board.set(G6, Color::Black, Piece::Pawn);
-        board.set(A5, Color::White, Piece::King);
-        board.set(B4, Color::White, Piece::Pawn);
-        board.set(F4, Color::White, Piece::Pawn);
-        board.set(G4, Color::White, Piece::Bishop);
-        board.set(H4, Color::Black, Piece::Pawn);
-        board.set(F3, Color::White, Piece::Pawn);
-        board.set(H3, Color::Black, Piece::Rook);
-        board.set(A2, Color::White, Piece::Rook);
-        board.set(E2, Color::White, Piece::Pawn);
-        board.set(G2, Color::White, Piece::Pawn);
-        board.set(H2, Color::Black, Piece::Pawn);
+        board.set(Color::White, Piece::Bishop, D8);
+        board.set(Color::Black, Piece::King, A7);
+        board.set(Color::White, Piece::Pawn, H7);
+        board.set(Color::White, Piece::Knight, E6);
+        board.set(Color::Black, Piece::Pawn, G6);
+        board.set(Color::White, Piece::King, A5);
+        board.set(Color::White, Piece::Pawn, B4);
+        board.set(Color::White, Piece::Pawn, F4);
+        board.set(Color::White, Piece::Bishop, G4);
+        board.set(Color::Black, Piece::Pawn, H4);
+        board.set(Color::White, Piece::Pawn, F3);
+        board.set(Color::Black, Piece::Rook, H3);
+        board.set(Color::White, Piece::Rook, A2);
+        board.set(Color::White, Piece::Pawn, E2);
+        board.set(Color::White, Piece::Pawn, G2);
+        board.set(Color::Black, Piece::Pawn, H2);
 
         assert_eq!(board.get_fen(), truth);
         assert_eq!(board, Board::from_fen(truth).unwrap());
