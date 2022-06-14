@@ -118,13 +118,13 @@ fn add_king_moves(board: &Board, all_occupancies: u64, opp_color: Color, moves: 
 fn add_knight_moves(board: &Board, moves: &mut Vec<Move>) {
     if board.is_whites_turn {
         for src_i in SetBitsIter(board.knights[White]) {
-            for dst_i in SetBitsIter(piece::get_knight_attacks_for(src_i)) {
+            for dst_i in SetBitsIter(piece::get_knight_attack_mask_for(src_i)) {
                 moves.push(Move::new(src_i, dst_i, Piece::Knight));
             }
         }
     } else {
         for src_i in SetBitsIter(board.knights[Black]) {
-            for dst_i in SetBitsIter(piece::get_knight_attacks_for(src_i)) {
+            for dst_i in SetBitsIter(piece::get_knight_attack_mask_for(src_i)) {
                 moves.push(Move::new(src_i, dst_i, Piece::Knight));
             }
         }

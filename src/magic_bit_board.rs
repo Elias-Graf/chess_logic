@@ -19,7 +19,6 @@ use once_cell::sync::Lazy;
 use crate::{
     bit_board::{self, U64PerSquare},
     piece,
-    square::_BoardPos,
     type_alias_default::TypeAliasDefault,
     Board, Piece,
 };

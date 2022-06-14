@@ -13,11 +13,6 @@ pub enum Square {
     A1, B1, C1, D1, E1, F1, G1, H1,
 }
 
-#[deprecated]
-pub trait _BoardPos: Debug {
-    fn idx(&self) -> usize;
-}
-
 impl From<Square> for i8 {
     fn from(square: Square) -> Self {
         square as i8
@@ -63,17 +58,5 @@ impl TryFrom<usize> for Square {
                 )
             })
             .map(|s| *s)
-    }
-}
-
-impl _BoardPos for usize {
-    fn idx(&self) -> usize {
-        *self
-    }
-}
-
-impl _BoardPos for Square {
-    fn idx(&self) -> usize {
-        (*self).into()
     }
 }
