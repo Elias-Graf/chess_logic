@@ -41,8 +41,14 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
         friendly_occupancies,
         &mut moves,
     );
-    add_king_moves(board, all_occupancies, opp_color, &mut moves);
-    add_knight_moves(board, &mut moves);
+    add_king_moves(
+        board,
+        friendly_color,
+        all_occupancies,
+        opp_color,
+        &mut moves,
+    );
+    add_knight_moves(board, friendly_color, &mut moves);
     add_pawn_moves(
         board,
         all_occupancies,
@@ -80,12 +86,19 @@ fn add_bishop_moves(
         all_occupancies,
         piece::get_bishop_attacks_for,
         friendly_occupancies,
+        friendly_color,
         Bishop,
         moves,
     );
 }
 
-fn add_king_moves(board: &Board, all_occupancies: u64, opp_color: Color, moves: &mut Vec<Move>) {
+fn add_king_moves(
+    board: &Board,
+    friendly_color: Color,
+    all_occupancies: u64,
+    opp_color: Color,
+    moves: &mut Vec<Move>,
+) {
     let mut castle = |required_clear_mask: u64, not_atk: &[Square], src: Square, dst: Square| {
         if bit_board::has_set_bits(all_occupancies & required_clear_mask) {
             return;
@@ -95,7 +108,7 @@ fn add_king_moves(board: &Board, all_occupancies: u64, opp_color: Color, moves: 
             return;
         }
 
-        moves.push(Move::new_castle(src, dst));
+        moves.push(Move::new_castle(friendly_color, src, dst));
     };
 
     // TODO: Check if it's actually whites turn
@@ -115,18 +128,10 @@ fn add_king_moves(board: &Board, all_occupancies: u64, opp_color: Color, moves: 
     }
 }
 
-fn add_knight_moves(board: &Board, moves: &mut Vec<Move>) {
-    if board.is_whites_turn {
-        for src_i in SetBitsIter(board.knights[White]) {
-            for dst_i in SetBitsIter(piece::get_knight_attack_mask_for(src_i)) {
-                moves.push(Move::new(src_i, dst_i, Piece::Knight));
-            }
-        }
-    } else {
-        for src_i in SetBitsIter(board.knights[Black]) {
-            for dst_i in SetBitsIter(piece::get_knight_attack_mask_for(src_i)) {
-                moves.push(Move::new(src_i, dst_i, Piece::Knight));
-            }
+fn add_knight_moves(board: &Board, friendly_color: Color, moves: &mut Vec<Move>) {
+    for src_i in SetBitsIter(board.knights[friendly_color]) {
+        for dst_i in SetBitsIter(piece::get_knight_attack_mask_for(src_i)) {
+            moves.push(Move::new(friendly_color, Knight, src_i, dst_i));
         }
     }
 }
@@ -152,31 +157,31 @@ fn add_pawn_moves(
         if is_prom(dst_i) {
             // Promotions
             if !bit_board::is_bit_set(all_occupancies, dst_i) {
-                moves.push(Move::new_prom(src_i, dst_i, Piece::Bishop));
-                moves.push(Move::new_prom(src_i, dst_i, Piece::Knight));
-                moves.push(Move::new_prom(src_i, dst_i, Piece::Queen));
-                moves.push(Move::new_prom(src_i, dst_i, Piece::Rook));
+                moves.push(Move::new_prom(friendly_color, src_i, dst_i, Bishop));
+                moves.push(Move::new_prom(friendly_color, src_i, dst_i, Knight));
+                moves.push(Move::new_prom(friendly_color, src_i, dst_i, Queen));
+                moves.push(Move::new_prom(friendly_color, src_i, dst_i, Rook));
             }
 
             // Capturing promotions
             let captures = piece::get_pawn_attacks_for(src_i, &friendly_color) & opp_occupancies;
             for capture in SetBitsIter(captures) {
-                moves.push(Move::new_prom(src_i, capture, Piece::Bishop));
-                moves.push(Move::new_prom(src_i, capture, Piece::Knight));
-                moves.push(Move::new_prom(src_i, capture, Piece::Queen));
-                moves.push(Move::new_prom(src_i, capture, Piece::Rook));
+                moves.push(Move::new_prom(friendly_color, src_i, capture, Bishop));
+                moves.push(Move::new_prom(friendly_color, src_i, capture, Knight));
+                moves.push(Move::new_prom(friendly_color, src_i, capture, Queen));
+                moves.push(Move::new_prom(friendly_color, src_i, capture, Rook));
             }
         } else {
             // Push
             if !bit_board::is_bit_set(all_occupancies, dst_i) {
-                moves.push(Move::new(src_i, dst_i, Piece::Pawn));
+                moves.push(Move::new(friendly_color, Pawn, src_i, dst_i));
 
                 // Double push
                 if can_do_double_push(src_i) {
                     let dst_idx = (src_i as i8 + dir * 2) as usize;
 
                     if !bit_board::is_bit_set(all_occupancies, dst_idx) {
-                        moves.push(Move::new(src_i, dst_idx, Piece::Pawn));
+                        moves.push(Move::new(friendly_color, Pawn, src_i, dst_idx));
                     }
                 }
             }
@@ -185,7 +190,7 @@ fn add_pawn_moves(
             let captures = piece::get_pawn_attacks_for(src_i, &friendly_color)
                 & board.pawns[friendly_color.opposing()];
             for capture in SetBitsIter(captures) {
-                moves.push(Move::new(src_i, capture, Piece::Pawn));
+                moves.push(Move::new(friendly_color, Pawn, src_i, capture));
             }
 
             // En passant
@@ -194,7 +199,11 @@ fn add_pawn_moves(
                     piece::get_pawn_attacks_for(src_i, &friendly_color),
                     en_passant_target_idx,
                 ) {
-                    moves.push(Move::new_en_pass(src_i, en_passant_target_idx));
+                    moves.push(Move::new_en_pass(
+                        friendly_color,
+                        src_i,
+                        en_passant_target_idx,
+                    ));
                 }
             }
         }
@@ -229,6 +238,7 @@ fn add_queen_moves(
         all_occupancies,
         piece::get_queen_attacks_for,
         friendly_occupancies,
+        friendly_color,
         Queen,
         moves,
     );
@@ -246,6 +256,7 @@ fn add_rook_moves(
         all_occupancies,
         piece::get_rook_attacks_for,
         friendly_occupancies,
+        friendly_color,
         Rook,
         moves,
     );
@@ -282,12 +293,13 @@ fn add_sliding_moves(
     all_occupancies: u64,
     get_attacks: fn(i: usize, blockers: u64) -> u64,
     friendly_occupancies: u64,
+    friendly_color: Color,
     piece_type: Piece,
     moves: &mut Vec<Move>,
 ) {
     for src_i in SetBitsIter(pieces) {
         for dst_i in SetBitsIter(get_attacks(src_i, all_occupancies) & !friendly_occupancies) {
-            moves.push(Move::new(src_i, dst_i, piece_type));
+            moves.push(Move::new(friendly_color, piece_type, src_i, dst_i));
         }
     }
 }
@@ -308,7 +320,7 @@ mod tests {
             let mut board = Board::new_empty();
             board.set(Color::White, Piece::Pawn, src);
 
-            assert_moves_eq(&all_moves(&board), &vec![Move::new(src, dst, Piece::Pawn)]);
+            assert_moves_eq(&all_moves(&board), &vec![Move::new(White, Pawn, src, dst)]);
         }
     }
 
@@ -317,9 +329,9 @@ mod tests {
         for (src, dst) in [(A6, A5), (B6, B5)] {
             let mut board = Board::new_empty();
             board.is_whites_turn = false;
-            board.set(Color::Black, Piece::Pawn, src);
+            board.set(Black, Pawn, src);
 
-            assert_moves_eq(&all_moves(&board), &vec![Move::new(src, dst, Piece::Pawn)]);
+            assert_moves_eq(&all_moves(&board), &vec![Move::new(Black, Pawn, src, dst)]);
         }
     }
 
@@ -331,8 +343,8 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &vec![
-                Move::new(A2, A3, Piece::Pawn),
-                Move::new(A2, A4, Piece::Pawn),
+                Move::new(White, Pawn, A2, A3),
+                Move::new(White, Pawn, A2, A4),
             ],
         );
 
@@ -342,8 +354,8 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &vec![
-                Move::new(B2, B3, Piece::Pawn),
-                Move::new(B2, B4, Piece::Pawn),
+                Move::new(White, Pawn, B2, B3),
+                Move::new(White, Pawn, B2, B4),
             ],
         );
     }
@@ -358,8 +370,8 @@ mod tests {
             assert_moves_eq(
                 &all_moves(&board),
                 &vec![
-                    Move::new(src_idx, src_idx + bit_board::SOUTH, Piece::Pawn),
-                    Move::new(src_idx, src_idx + bit_board::SOUTH * 2, Piece::Pawn),
+                    Move::new(Black, Pawn, src_idx, src_idx + bit_board::SOUTH),
+                    Move::new(Black, Pawn, src_idx, src_idx + bit_board::SOUTH * 2),
                 ],
             );
         }
@@ -374,10 +386,10 @@ mod tests {
             assert_moves_eq(
                 &all_moves(&board),
                 &[
-                    Move::new_prom(i, i - bit_board::NORTH, Piece::Bishop),
-                    Move::new_prom(i, i - bit_board::NORTH, Piece::Knight),
-                    Move::new_prom(i, i - bit_board::NORTH, Piece::Queen),
-                    Move::new_prom(i, i - bit_board::NORTH, Piece::Rook),
+                    Move::new_prom(White, i, i - NORTH, Bishop),
+                    Move::new_prom(White, i, i - NORTH, Knight),
+                    Move::new_prom(White, i, i - NORTH, Queen),
+                    Move::new_prom(White, i, i - NORTH, Rook),
                 ],
             );
         }
@@ -404,10 +416,10 @@ mod tests {
             assert_moves_eq(
                 &all_moves(&board),
                 &[
-                    Move::new_prom(i, i + bit_board::SOUTH as usize, Piece::Bishop),
-                    Move::new_prom(i, i + bit_board::SOUTH as usize, Piece::Knight),
-                    Move::new_prom(i, i + bit_board::SOUTH as usize, Piece::Queen),
-                    Move::new_prom(i, i + bit_board::SOUTH as usize, Piece::Rook),
+                    Move::new_prom(Black, i, i + SOUTH, Bishop),
+                    Move::new_prom(Black, i, i + SOUTH, Knight),
+                    Move::new_prom(Black, i, i + SOUTH, Queen),
+                    Move::new_prom(Black, i, i + SOUTH, Rook),
                 ],
             );
         }
@@ -432,9 +444,9 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(B4, B5, Piece::Pawn),
-                Move::new(A3, A4, Piece::Pawn),
-                Move::new(B2, B3, Piece::Pawn),
+                Move::new(White, Pawn, B4, B5),
+                Move::new(White, Pawn, A3, A4),
+                Move::new(White, Pawn, B2, B3),
             ],
         );
     }
@@ -446,9 +458,9 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(G7, G6, Piece::Pawn),
-                Move::new(H6, H5, Piece::Pawn),
-                Move::new(G5, G4, Piece::Pawn),
+                Move::new(Black, Pawn, G7, G6),
+                Move::new(Black, Pawn, H6, H5),
+                Move::new(Black, Pawn, G5, G4),
             ],
         );
     }
@@ -460,9 +472,9 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(B3, A4, Piece::Pawn),
-                Move::new(B3, B4, Piece::Pawn),
-                Move::new(B3, C4, Piece::Pawn),
+                Move::new(White, Pawn, B3, A4),
+                Move::new(White, Pawn, B3, B4),
+                Move::new(White, Pawn, B3, C4),
             ],
         );
     }
@@ -474,9 +486,9 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(B6, B5, Piece::Pawn),
-                Move::new(B6, A5, Piece::Pawn),
-                Move::new(B6, C5, Piece::Pawn),
+                Move::new(Black, Pawn, B6, B5),
+                Move::new(Black, Pawn, B6, A5),
+                Move::new(Black, Pawn, B6, C5),
             ],
         );
     }
@@ -491,18 +503,18 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new_prom(B7, A8, Bishop),
-                Move::new_prom(B7, A8, Knight),
-                Move::new_prom(B7, A8, Queen),
-                Move::new_prom(B7, A8, Rook),
-                Move::new_prom(B7, B8, Bishop),
-                Move::new_prom(B7, B8, Knight),
-                Move::new_prom(B7, B8, Queen),
-                Move::new_prom(B7, B8, Rook),
-                Move::new_prom(B7, C8, Bishop),
-                Move::new_prom(B7, C8, Knight),
-                Move::new_prom(B7, C8, Queen),
-                Move::new_prom(B7, C8, Rook),
+                Move::new_prom(White, B7, A8, Bishop),
+                Move::new_prom(White, B7, A8, Knight),
+                Move::new_prom(White, B7, A8, Queen),
+                Move::new_prom(White, B7, A8, Rook),
+                Move::new_prom(White, B7, B8, Bishop),
+                Move::new_prom(White, B7, B8, Knight),
+                Move::new_prom(White, B7, B8, Queen),
+                Move::new_prom(White, B7, B8, Rook),
+                Move::new_prom(White, B7, C8, Bishop),
+                Move::new_prom(White, B7, C8, Knight),
+                Move::new_prom(White, B7, C8, Queen),
+                Move::new_prom(White, B7, C8, Rook),
             ],
         );
     }
@@ -520,18 +532,18 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new_prom(B2, A1, Bishop),
-                Move::new_prom(B2, A1, Knight),
-                Move::new_prom(B2, A1, Queen),
-                Move::new_prom(B2, A1, Rook),
-                Move::new_prom(B2, B1, Bishop),
-                Move::new_prom(B2, B1, Knight),
-                Move::new_prom(B2, B1, Queen),
-                Move::new_prom(B2, B1, Rook),
-                Move::new_prom(B2, C1, Bishop),
-                Move::new_prom(B2, C1, Knight),
-                Move::new_prom(B2, C1, Queen),
-                Move::new_prom(B2, C1, Rook),
+                Move::new_prom(Black, B2, A1, Bishop),
+                Move::new_prom(Black, B2, A1, Knight),
+                Move::new_prom(Black, B2, A1, Queen),
+                Move::new_prom(Black, B2, A1, Rook),
+                Move::new_prom(Black, B2, B1, Bishop),
+                Move::new_prom(Black, B2, B1, Knight),
+                Move::new_prom(Black, B2, B1, Queen),
+                Move::new_prom(Black, B2, B1, Rook),
+                Move::new_prom(Black, B2, C1, Bishop),
+                Move::new_prom(Black, B2, C1, Knight),
+                Move::new_prom(Black, B2, C1, Queen),
+                Move::new_prom(Black, B2, C1, Rook),
             ],
         );
     }
@@ -547,8 +559,8 @@ mod tests {
             assert_moves_eq(
                 &all_moves(&board),
                 &[
-                    Move::new_en_pass(i + bit_board::EAST, i - bit_board::NORTH),
-                    Move::new(i + bit_board::EAST, i - bit_board::NO_EA, Piece::Pawn),
+                    Move::new_en_pass(White, i + bit_board::EAST, i - bit_board::NORTH),
+                    Move::new(White, Pawn, i + bit_board::EAST, i - bit_board::NO_EA),
                 ],
             );
         }
@@ -561,13 +573,13 @@ mod tests {
             board.is_whites_turn = false;
             board.en_passant_target_idx = Some(i + bit_board::SOUTH);
             board.set(Color::White, Piece::Pawn, i);
-            board.set( Color::Black, Piece::Pawn, i + bit_board::EAST);
+            board.set(Color::Black, Piece::Pawn, i + bit_board::EAST);
 
             assert_moves_eq(
                 &all_moves(&board),
                 &[
-                    Move::new_en_pass(i + bit_board::EAST, i + bit_board::SOUTH),
-                    Move::new(i + bit_board::EAST, i + bit_board::SO_EA, Piece::Pawn),
+                    Move::new_en_pass(Black, i + bit_board::EAST, i + bit_board::SOUTH),
+                    Move::new(Black, Pawn, i + bit_board::EAST, i + bit_board::SO_EA),
                 ],
             );
         }
@@ -585,7 +597,7 @@ mod tests {
             board.king[White],
             &mut expected_moves,
         );
-        expected_moves.push(Move::new_castle(E1, C1));
+        expected_moves.push(Move::new_castle(White, E1, C1));
 
         assert_moves_eq(&all_moves(&board), &expected_moves);
     }
@@ -602,7 +614,7 @@ mod tests {
             board.king[Black],
             &mut expected_moves,
         );
-        expected_moves.push(Move::new_castle(E8, C8));
+        expected_moves.push(Move::new_castle(Black, E8, C8));
 
         assert_moves_eq(&all_moves(&board), &expected_moves);
     }
@@ -703,7 +715,7 @@ mod tests {
             board.king[White],
             &mut expected_moves,
         );
-        expected_moves.push(Move::new_castle(E1, G1));
+        expected_moves.push(Move::new_castle(White, E1, G1));
 
         assert_moves_eq(&all_moves(&board), &expected_moves);
     }
@@ -720,7 +732,7 @@ mod tests {
             board.king[Black],
             &mut expected_moves,
         );
-        expected_moves.push(Move::new_castle(E8, G8));
+        expected_moves.push(Move::new_castle(Black, E8, G8));
 
         assert_moves_eq(&all_moves(&board), &expected_moves);
     }
@@ -773,7 +785,7 @@ mod tests {
 
         for i in 60..63 {
             let mut board = board.clone();
-            board.set( Black, Rook, i - NORTH);
+            board.set(Black, Rook, i - NORTH);
 
             let mut rook_moves = Vec::new();
             add_rook_moves(
@@ -794,7 +806,7 @@ mod tests {
 
         for i in 4..7 {
             let mut board = board.clone();
-            board.set( White, Rook, i + SOUTH);
+            board.set(White, Rook, i + SOUTH);
 
             let mut rook_moves = Vec::new();
             add_rook_moves(
@@ -818,17 +830,17 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(B1, A3, Knight),
-                Move::new(B1, C3, Knight),
-                Move::new(B1, D2, Knight),
-                Move::new(F3, D2, Knight),
-                Move::new(F3, D4, Knight),
-                Move::new(F3, E1, Knight),
-                Move::new(F3, E5, Knight),
-                Move::new(F3, G1, Knight),
-                Move::new(F3, G5, Knight),
-                Move::new(F3, H2, Knight),
-                Move::new(F3, H4, Knight),
+                Move::new(White, Knight, B1, A3),
+                Move::new(White, Knight, B1, C3),
+                Move::new(White, Knight, B1, D2),
+                Move::new(White, Knight, F3, D2),
+                Move::new(White, Knight, F3, D4),
+                Move::new(White, Knight, F3, E1),
+                Move::new(White, Knight, F3, E5),
+                Move::new(White, Knight, F3, G1),
+                Move::new(White, Knight, F3, G5),
+                Move::new(White, Knight, F3, H2),
+                Move::new(White, Knight, F3, H4),
             ],
         );
     }
@@ -842,9 +854,9 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(B1, A3, Knight),
-                Move::new(B1, C3, Knight),
-                Move::new(B1, D2, Knight),
+                Move::new(White, Knight, B1, A3),
+                Move::new(White, Knight, B1, C3),
+                Move::new(White, Knight, B1, D2),
             ],
         );
     }
@@ -859,17 +871,17 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(C6, A5, Knight),
-                Move::new(C6, A7, Knight),
-                Move::new(C6, B4, Knight),
-                Move::new(C6, B8, Knight),
-                Move::new(C6, D4, Knight),
-                Move::new(C6, D8, Knight),
-                Move::new(C6, E5, Knight),
-                Move::new(C6, E7, Knight),
-                Move::new(G8, E7, Knight),
-                Move::new(G8, F6, Knight),
-                Move::new(G8, H6, Knight),
+                Move::new(Black, Knight, C6, A5),
+                Move::new(Black, Knight, C6, A7),
+                Move::new(Black, Knight, C6, B4),
+                Move::new(Black, Knight, C6, B8),
+                Move::new(Black, Knight, C6, D4),
+                Move::new(Black, Knight, C6, D8),
+                Move::new(Black, Knight, C6, E5),
+                Move::new(Black, Knight, C6, E7),
+                Move::new(Black, Knight, G8, E7),
+                Move::new(Black, Knight, G8, F6),
+                Move::new(Black, Knight, G8, H6),
             ],
         );
     }
@@ -884,9 +896,9 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(G8, E7, Knight),
-                Move::new(G8, F6, Knight),
-                Move::new(G8, H6, Knight),
+                Move::new(Black, Knight, G8, E7),
+                Move::new(Black, Knight, G8, F6),
+                Move::new(Black, Knight, G8, H6),
             ],
         );
     }
@@ -900,20 +912,20 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(A6, B5, Bishop),
-                Move::new(A6, B7, Bishop),
-                Move::new(A6, C4, Bishop),
-                Move::new(A6, C8, Bishop),
-                Move::new(A6, D3, Bishop),
-                Move::new(A6, E2, Bishop),
-                Move::new(A6, F1, Bishop),
-                Move::new(C1, A3, Bishop),
-                Move::new(C1, B2, Bishop),
-                Move::new(C1, D2, Bishop),
-                Move::new(C1, E3, Bishop),
-                Move::new(C1, F4, Bishop),
-                Move::new(C1, G5, Bishop),
-                Move::new(C1, H6, Bishop),
+                Move::new(White, Bishop, A6, B5),
+                Move::new(White, Bishop, A6, B7),
+                Move::new(White, Bishop, A6, C4),
+                Move::new(White, Bishop, A6, C8),
+                Move::new(White, Bishop, A6, D3),
+                Move::new(White, Bishop, A6, E2),
+                Move::new(White, Bishop, A6, F1),
+                Move::new(White, Bishop, C1, A3),
+                Move::new(White, Bishop, C1, B2),
+                Move::new(White, Bishop, C1, D2),
+                Move::new(White, Bishop, C1, E3),
+                Move::new(White, Bishop, C1, F4),
+                Move::new(White, Bishop, C1, G5),
+                Move::new(White, Bishop, C1, H6),
             ],
         );
     }
@@ -928,20 +940,20 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(F8, G7, Bishop),
-                Move::new(F8, H6, Bishop),
-                Move::new(F8, E7, Bishop),
-                Move::new(F8, D6, Bishop),
-                Move::new(F8, C5, Bishop),
-                Move::new(F8, B4, Bishop),
-                Move::new(F8, A3, Bishop),
-                Move::new(H3, G4, Bishop),
-                Move::new(H3, F5, Bishop),
-                Move::new(H3, E6, Bishop),
-                Move::new(H3, D7, Bishop),
-                Move::new(H3, C8, Bishop),
-                Move::new(H3, G2, Bishop),
-                Move::new(H3, F1, Bishop),
+                Move::new(Black, Bishop, F8, G7),
+                Move::new(Black, Bishop, F8, H6),
+                Move::new(Black, Bishop, F8, E7),
+                Move::new(Black, Bishop, F8, D6),
+                Move::new(Black, Bishop, F8, C5),
+                Move::new(Black, Bishop, F8, B4),
+                Move::new(Black, Bishop, F8, A3),
+                Move::new(Black, Bishop, H3, G4),
+                Move::new(Black, Bishop, H3, F5),
+                Move::new(Black, Bishop, H3, E6),
+                Move::new(Black, Bishop, H3, D7),
+                Move::new(Black, Bishop, H3, C8),
+                Move::new(Black, Bishop, H3, G2),
+                Move::new(Black, Bishop, H3, F1),
             ],
         );
     }
@@ -956,11 +968,11 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(G7, F8, Bishop),
-                Move::new(G7, H8, Bishop),
-                Move::new(G7, F6, Bishop),
-                Move::new(G7, E5, Bishop),
-                Move::new(H6, H7, Pawn),
+                Move::new(White, Bishop, G7, F8),
+                Move::new(White, Bishop, G7, H8),
+                Move::new(White, Bishop, G7, F6),
+                Move::new(White, Bishop, G7, E5),
+                Move::new(White, Pawn, H6, H7),
             ],
         );
     }
@@ -976,11 +988,11 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(C2, E4, Bishop),
-                Move::new(C2, B3, Bishop),
-                Move::new(C2, D3, Bishop),
-                Move::new(C2, B1, Bishop),
-                Move::new(C2, D1, Bishop),
+                Move::new(Black, Bishop, C2, E4),
+                Move::new(Black, Bishop, C2, B3),
+                Move::new(Black, Bishop, C2, D3),
+                Move::new(Black, Bishop, C2, B1),
+                Move::new(Black, Bishop, C2, D1),
             ],
         );
     }
@@ -993,27 +1005,27 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(D1, A1, Queen),
-                Move::new(D1, A4, Queen),
-                Move::new(D1, B1, Queen),
-                Move::new(D1, B3, Queen),
-                Move::new(D1, C1, Queen),
-                Move::new(D1, C2, Queen),
-                Move::new(D1, D2, Queen),
-                Move::new(D1, D3, Queen),
-                Move::new(D1, D4, Queen),
-                Move::new(D1, D5, Queen),
-                Move::new(D1, D6, Queen),
-                Move::new(D1, D7, Queen),
-                Move::new(D1, D8, Queen),
-                Move::new(D1, E1, Queen),
-                Move::new(D1, E2, Queen),
-                Move::new(D1, F1, Queen),
-                Move::new(D1, F3, Queen),
-                Move::new(D1, G1, Queen),
-                Move::new(D1, G4, Queen),
-                Move::new(D1, H1, Queen),
-                Move::new(D1, H5, Queen),
+                Move::new(White, Queen, D1, A1),
+                Move::new(White, Queen, D1, A4),
+                Move::new(White, Queen, D1, B1),
+                Move::new(White, Queen, D1, B3),
+                Move::new(White, Queen, D1, C1),
+                Move::new(White, Queen, D1, C2),
+                Move::new(White, Queen, D1, D2),
+                Move::new(White, Queen, D1, D3),
+                Move::new(White, Queen, D1, D4),
+                Move::new(White, Queen, D1, D5),
+                Move::new(White, Queen, D1, D6),
+                Move::new(White, Queen, D1, D7),
+                Move::new(White, Queen, D1, D8),
+                Move::new(White, Queen, D1, E1),
+                Move::new(White, Queen, D1, E2),
+                Move::new(White, Queen, D1, F1),
+                Move::new(White, Queen, D1, F3),
+                Move::new(White, Queen, D1, G1),
+                Move::new(White, Queen, D1, G4),
+                Move::new(White, Queen, D1, H1),
+                Move::new(White, Queen, D1, H5),
             ],
         );
     }
@@ -1029,27 +1041,27 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(D8, A5, Queen),
-                Move::new(D8, A8, Queen),
-                Move::new(D8, B6, Queen),
-                Move::new(D8, B8, Queen),
-                Move::new(D8, C7, Queen),
-                Move::new(D8, C8, Queen),
-                Move::new(D8, D1, Queen),
-                Move::new(D8, D2, Queen),
-                Move::new(D8, D3, Queen),
-                Move::new(D8, D4, Queen),
-                Move::new(D8, D5, Queen),
-                Move::new(D8, D6, Queen),
-                Move::new(D8, D7, Queen),
-                Move::new(D8, E7, Queen),
-                Move::new(D8, E8, Queen),
-                Move::new(D8, F6, Queen),
-                Move::new(D8, F8, Queen),
-                Move::new(D8, G5, Queen),
-                Move::new(D8, G8, Queen),
-                Move::new(D8, H4, Queen),
-                Move::new(D8, H8, Queen),
+                Move::new(Black, Queen, D8, A5),
+                Move::new(Black, Queen, D8, A8),
+                Move::new(Black, Queen, D8, B6),
+                Move::new(Black, Queen, D8, B8),
+                Move::new(Black, Queen, D8, C7),
+                Move::new(Black, Queen, D8, C8),
+                Move::new(Black, Queen, D8, D1),
+                Move::new(Black, Queen, D8, D2),
+                Move::new(Black, Queen, D8, D3),
+                Move::new(Black, Queen, D8, D4),
+                Move::new(Black, Queen, D8, D5),
+                Move::new(Black, Queen, D8, D6),
+                Move::new(Black, Queen, D8, D7),
+                Move::new(Black, Queen, D8, E7),
+                Move::new(Black, Queen, D8, E8),
+                Move::new(Black, Queen, D8, F6),
+                Move::new(Black, Queen, D8, F8),
+                Move::new(Black, Queen, D8, G5),
+                Move::new(Black, Queen, D8, G8),
+                Move::new(Black, Queen, D8, H4),
+                Move::new(Black, Queen, D8, H8),
             ],
         );
     }
@@ -1065,21 +1077,21 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(H3, H2, Pawn),
-                Move::new(H4, D8, Queen),
-                Move::new(H4, E1, Queen),
-                Move::new(H4, E4, Queen),
-                Move::new(H4, E7, Queen),
-                Move::new(H4, F2, Queen),
-                Move::new(H4, F4, Queen),
-                Move::new(H4, F6, Queen),
-                Move::new(H4, G3, Queen),
-                Move::new(H4, G4, Queen),
-                Move::new(H4, G5, Queen),
-                Move::new(H4, H5, Queen),
-                Move::new(H4, H6, Queen),
-                Move::new(H4, H7, Queen),
-                Move::new(H4, H8, Queen),
+                Move::new(Black, Pawn, H3, H2),
+                Move::new(Black, Queen, H4, D8),
+                Move::new(Black, Queen, H4, E1),
+                Move::new(Black, Queen, H4, E4),
+                Move::new(Black, Queen, H4, E7),
+                Move::new(Black, Queen, H4, F2),
+                Move::new(Black, Queen, H4, F4),
+                Move::new(Black, Queen, H4, F6),
+                Move::new(Black, Queen, H4, G3),
+                Move::new(Black, Queen, H4, G4),
+                Move::new(Black, Queen, H4, G5),
+                Move::new(Black, Queen, H4, H5),
+                Move::new(Black, Queen, H4, H6),
+                Move::new(Black, Queen, H4, H7),
+                Move::new(Black, Queen, H4, H8),
             ],
         );
     }
@@ -1094,22 +1106,22 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(A4, A1, Queen),
-                Move::new(A4, A2, Queen),
-                Move::new(A4, A3, Queen),
-                Move::new(A4, B3, Queen),
-                Move::new(A4, B4, Queen),
-                Move::new(A4, B5, Queen),
-                Move::new(A4, C2, Queen),
-                Move::new(A4, C4, Queen),
-                Move::new(A4, C6, Queen),
-                Move::new(A4, D1, Queen),
-                Move::new(A4, D4, Queen),
-                Move::new(A4, E4, Queen),
-                Move::new(A4, F4, Queen),
-                Move::new(A4, G4, Queen),
-                Move::new(A4, H4, Queen),
-                Move::new(A5, A6, Pawn),
+                Move::new(White, Queen, A4, A1),
+                Move::new(White, Queen, A4, A2),
+                Move::new(White, Queen, A4, A3),
+                Move::new(White, Queen, A4, B3),
+                Move::new(White, Queen, A4, B4),
+                Move::new(White, Queen, A4, B5),
+                Move::new(White, Queen, A4, C2),
+                Move::new(White, Queen, A4, C4),
+                Move::new(White, Queen, A4, C6),
+                Move::new(White, Queen, A4, D1),
+                Move::new(White, Queen, A4, D4),
+                Move::new(White, Queen, A4, E4),
+                Move::new(White, Queen, A4, F4),
+                Move::new(White, Queen, A4, G4),
+                Move::new(White, Queen, A4, H4),
+                Move::new(White, Pawn, A5, A6),
             ],
         );
     }
@@ -1123,34 +1135,34 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(A1, A8, Rook),
-                Move::new(A1, A7, Rook),
-                Move::new(A1, A6, Rook),
-                Move::new(A1, A5, Rook),
-                Move::new(A1, A4, Rook),
-                Move::new(A1, A3, Rook),
-                Move::new(A1, A2, Rook),
-                Move::new(A1, B1, Rook),
-                Move::new(A1, C1, Rook),
-                Move::new(A1, D1, Rook),
-                Move::new(A1, E1, Rook),
-                Move::new(A1, F1, Rook),
-                Move::new(A1, G1, Rook),
-                Move::new(A1, H1, Rook),
-                Move::new(H8, A8, Rook),
-                Move::new(H8, B8, Rook),
-                Move::new(H8, C8, Rook),
-                Move::new(H8, D8, Rook),
-                Move::new(H8, E8, Rook),
-                Move::new(H8, F8, Rook),
-                Move::new(H8, G8, Rook),
-                Move::new(H8, H7, Rook),
-                Move::new(H8, H6, Rook),
-                Move::new(H8, H5, Rook),
-                Move::new(H8, H4, Rook),
-                Move::new(H8, H3, Rook),
-                Move::new(H8, H2, Rook),
-                Move::new(H8, H1, Rook),
+                Move::new(White, Rook, A1, A8),
+                Move::new(White, Rook, A1, A7),
+                Move::new(White, Rook, A1, A6),
+                Move::new(White, Rook, A1, A5),
+                Move::new(White, Rook, A1, A4),
+                Move::new(White, Rook, A1, A3),
+                Move::new(White, Rook, A1, A2),
+                Move::new(White, Rook, A1, B1),
+                Move::new(White, Rook, A1, C1),
+                Move::new(White, Rook, A1, D1),
+                Move::new(White, Rook, A1, E1),
+                Move::new(White, Rook, A1, F1),
+                Move::new(White, Rook, A1, G1),
+                Move::new(White, Rook, A1, H1),
+                Move::new(White, Rook, H8, A8),
+                Move::new(White, Rook, H8, B8),
+                Move::new(White, Rook, H8, C8),
+                Move::new(White, Rook, H8, D8),
+                Move::new(White, Rook, H8, E8),
+                Move::new(White, Rook, H8, F8),
+                Move::new(White, Rook, H8, G8),
+                Move::new(White, Rook, H8, H7),
+                Move::new(White, Rook, H8, H6),
+                Move::new(White, Rook, H8, H5),
+                Move::new(White, Rook, H8, H4),
+                Move::new(White, Rook, H8, H3),
+                Move::new(White, Rook, H8, H2),
+                Move::new(White, Rook, H8, H1),
             ],
         );
     }
@@ -1165,10 +1177,10 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(A1, A2, Rook),
-                Move::new(A1, B1, Rook),
-                Move::new(A1, C1, Rook),
-                Move::new(A3, A4, Pawn),
+                Move::new(White, Rook, A1, A2),
+                Move::new(White, Rook, A1, B1),
+                Move::new(White, Rook, A1, C1),
+                Move::new(White, Pawn, A3, A4),
             ],
         );
     }
@@ -1183,34 +1195,34 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(A8, A7, Rook),
-                Move::new(A8, A6, Rook),
-                Move::new(A8, A5, Rook),
-                Move::new(A8, A4, Rook),
-                Move::new(A8, A3, Rook),
-                Move::new(A8, A2, Rook),
-                Move::new(A8, A1, Rook),
-                Move::new(A8, B8, Rook),
-                Move::new(A8, C8, Rook),
-                Move::new(A8, D8, Rook),
-                Move::new(A8, E8, Rook),
-                Move::new(A8, F8, Rook),
-                Move::new(A8, G8, Rook),
-                Move::new(A8, H8, Rook),
-                Move::new(H1, A1, Rook),
-                Move::new(H1, B1, Rook),
-                Move::new(H1, C1, Rook),
-                Move::new(H1, D1, Rook),
-                Move::new(H1, E1, Rook),
-                Move::new(H1, F1, Rook),
-                Move::new(H1, G1, Rook),
-                Move::new(H1, H2, Rook),
-                Move::new(H1, H3, Rook),
-                Move::new(H1, H4, Rook),
-                Move::new(H1, H5, Rook),
-                Move::new(H1, H6, Rook),
-                Move::new(H1, H7, Rook),
-                Move::new(H1, H8, Rook),
+                Move::new(Black, Rook, A8, A7),
+                Move::new(Black, Rook, A8, A6),
+                Move::new(Black, Rook, A8, A5),
+                Move::new(Black, Rook, A8, A4),
+                Move::new(Black, Rook, A8, A3),
+                Move::new(Black, Rook, A8, A2),
+                Move::new(Black, Rook, A8, A1),
+                Move::new(Black, Rook, A8, B8),
+                Move::new(Black, Rook, A8, C8),
+                Move::new(Black, Rook, A8, D8),
+                Move::new(Black, Rook, A8, E8),
+                Move::new(Black, Rook, A8, F8),
+                Move::new(Black, Rook, A8, G8),
+                Move::new(Black, Rook, A8, H8),
+                Move::new(Black, Rook, H1, A1),
+                Move::new(Black, Rook, H1, B1),
+                Move::new(Black, Rook, H1, C1),
+                Move::new(Black, Rook, H1, D1),
+                Move::new(Black, Rook, H1, E1),
+                Move::new(Black, Rook, H1, F1),
+                Move::new(Black, Rook, H1, G1),
+                Move::new(Black, Rook, H1, H2),
+                Move::new(Black, Rook, H1, H3),
+                Move::new(Black, Rook, H1, H4),
+                Move::new(Black, Rook, H1, H5),
+                Move::new(Black, Rook, H1, H6),
+                Move::new(Black, Rook, H1, H7),
+                Move::new(Black, Rook, H1, H8),
             ],
         );
     }
@@ -1226,11 +1238,11 @@ mod tests {
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(H8, H7, Rook),
-                Move::new(H8, G8, Rook),
-                Move::new(H8, F8, Rook),
-                Move::new(H8, E8, Rook),
-                Move::new(H6, H5, Pawn),
+                Move::new(Black, Rook, H8, H7),
+                Move::new(Black, Rook, H8, G8),
+                Move::new(Black, Rook, H8, F8),
+                Move::new(Black, Rook, H8, E8),
+                Move::new(Black, Pawn, H6, H5),
             ],
         );
     }
@@ -1276,6 +1288,7 @@ pub struct Move {
     is_double_push: bool,
     is_en_passant: bool,
     piece: Piece,
+    piece_color: Color,
     promote_to: Option<Piece>,
     source: usize,
 }
@@ -1297,36 +1310,42 @@ impl Move {
         self.is_en_passant
     }
 
-    pub fn new(src: impl BoardPos, dst: impl BoardPos, piece: Piece) -> Self {
+    pub fn new(color: Color, piece: Piece, src: impl BoardPos, dst: impl BoardPos) -> Self {
         Self {
             destination: dst.into(),
             is_castle: false,
             is_double_push: false,
             is_en_passant: false,
             piece,
+            piece_color: color,
             promote_to: None,
             source: src.into(),
         }
     }
 
-    pub fn new_castle(src: impl BoardPos, dst: impl BoardPos) -> Self {
+    pub fn new_castle(color: Color, src: impl BoardPos, dst: impl BoardPos) -> Self {
         Self {
             is_castle: true,
-            ..Self::new(src, dst, Piece::King)
+            ..Self::new(color, King, src, dst)
         }
     }
 
-    pub fn new_en_pass(src: impl BoardPos, dst: impl BoardPos) -> Self {
+    pub fn new_en_pass(color: Color, src: impl BoardPos, dst: impl BoardPos) -> Self {
         Self {
             is_en_passant: true,
-            ..Self::new(src, dst, Piece::Pawn)
+            ..Self::new(color, Pawn, src, dst)
         }
     }
 
-    pub fn new_prom(src: impl BoardPos, dst: impl BoardPos, promote_to: Piece) -> Self {
+    pub fn new_prom(
+        color: Color,
+        src: impl BoardPos,
+        dst: impl BoardPos,
+        promote_to: Piece,
+    ) -> Self {
         Self {
             promote_to: Some(promote_to),
-            ..Self::new(src, dst, Piece::Pawn)
+            ..Self::new(color, Pawn, src, dst)
         }
     }
 
@@ -1375,7 +1394,8 @@ impl Display for Move {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{:?}: {:?}->{:?}",
+            "{:?} {:?}: {:?}->{:?}",
+            self.piece_color,
             self.piece,
             Square::try_from(self.source()).unwrap(),
             Square::try_from(self.destination()).unwrap(),
