@@ -1294,7 +1294,7 @@ pub struct Move {
 }
 
 impl Move {
-    pub fn destination(&self) -> usize {
+    pub fn dst(&self) -> usize {
         self.destination
     }
 
@@ -1353,6 +1353,10 @@ impl Move {
         self.piece
     }
 
+    pub fn piece_color(&self) -> Color {
+        self.piece_color
+    }
+
     pub fn promote_to(&self) -> Option<Piece> {
         self.promote_to
     }
@@ -1373,6 +1377,10 @@ impl Move {
         self.piece = val;
     }
 
+    pub fn set_piece_color(&mut self, val: Color) {
+        self.piece_color = val;
+    }
+
     pub fn set_promote_to(&mut self, val: Option<Piece>) {
         self.promote_to = val;
     }
@@ -1385,7 +1393,7 @@ impl Move {
         self.destination = val;
     }
 
-    pub fn source(&self) -> usize {
+    pub fn src(&self) -> usize {
         self.source
     }
 }
@@ -1397,8 +1405,8 @@ impl Display for Move {
             "{:?} {:?}: {:?}->{:?}",
             self.piece_color,
             self.piece,
-            Square::try_from(self.source()).unwrap(),
-            Square::try_from(self.destination()).unwrap(),
+            Square::try_from(self.src()).unwrap(),
+            Square::try_from(self.dst()).unwrap(),
         )?;
 
         if self.is_en_passant {

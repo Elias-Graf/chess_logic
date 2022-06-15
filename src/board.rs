@@ -82,7 +82,8 @@ impl Board {
     }
 
     pub fn do_move(&mut self, mv: Move) {
-        unimplemented!()
+        self.clear(mv.piece_color(), mv.piece(), mv.src());
+        self.set(mv.piece_color(), mv.piece(), mv.dst());
     }
 
     /// Get the pice ([`PieceInstance`]) on the specified location
@@ -325,8 +326,12 @@ impl PieceInstance {
 
 #[cfg(test)]
 mod tests {
+    use crate::fen::Fen;
+
     use super::*;
 
+    use Color::*;
+    use Piece::*;
     use Square::*;
 
     #[test]
@@ -490,5 +495,22 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn do_move() {
+        let mut board = Board::new_empty();
+        board.set(White, Pawn, A2);
+        board.set(Black, Pawn, H7);
+        board.set(Black, Knight, B8);
+
+        board.do_move(Move::new(White, Pawn, A2, A3));
+        assert_eq!(board.get_fen(), "1n6/7p/8/8/8/P7/8/8 w - - 0 0");
+
+        board.do_move(Move::new(Black, Pawn, H7, H6));
+        assert_eq!(board.get_fen(), "1n6/8/7p/8/8/P7/8/8 w - - 0 0");
+        
+        board.do_move(Move::new(Black, Knight, B8, A6));
+        assert_eq!(board.get_fen(), "8/8/n6p/8/8/P7/8/8 w - - 0 0");
     }
 }
