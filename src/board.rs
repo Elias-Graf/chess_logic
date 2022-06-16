@@ -4,6 +4,7 @@ use std::{
 };
 
 use crate::{bit_board, move_generator::Move, piece, square::Square, Color, Piece};
+use Piece::*;
 
 pub type BitBoardPerColor = [u64; 2];
 
@@ -82,8 +83,23 @@ impl Board {
     }
 
     pub fn do_move(&mut self, mv: Move) {
-        self.clear(mv.piece_color(), mv.piece(), mv.src());
-        self.set(mv.piece_color(), mv.piece(), mv.dst());
+        let mv_color = mv.piece_color();
+        let mv_dst = mv.dst();
+
+        // Move the piece
+        self.clear(mv_color, mv.piece(), mv.src());
+        self.set(mv_color, mv.piece(), mv_dst);
+
+        // Remove (potentially) captured piece on the destination position
+        for piece in [Bishop, King, Knight, Pawn, Queen, Rook] {
+            self.clear(mv_color.opposing(), piece, mv_dst);
+        }
+
+        // Handle pawn promotions
+        if let Some(prom_to) = mv.prom_to() {
+            self.clear(mv_color, Pawn, mv_dst);
+            self.set(mv_color, prom_to, mv_dst);
+        }
     }
 
     /// Get the pice ([`PieceInstance`]) on the specified location
@@ -331,7 +347,6 @@ mod tests {
     use super::*;
 
     use Color::*;
-    use Piece::*;
     use Square::*;
 
     #[test]
@@ -509,8 +524,44 @@ mod tests {
 
         board.do_move(Move::new(Black, Pawn, H7, H6));
         assert_eq!(board.get_fen(), "1n6/8/7p/8/8/P7/8/8 w - - 0 0");
-        
+
         board.do_move(Move::new(Black, Knight, B8, A6));
         assert_eq!(board.get_fen(), "8/8/n6p/8/8/P7/8/8 w - - 0 0");
+    }
+
+    #[test]
+    fn do_move_capture() {
+        let mut board = Board::from_fen("8/8/2n5/r7/8/8/3B4/8 w - - 0 0").unwrap();
+
+        board.do_move(Move::new(White, Bishop, D2, A5));
+        assert_eq!(board.get_fen(), "8/8/2n5/B7/8/8/8/8 w - - 0 0");
+
+        board.do_move(Move::new(Black, Knight, C6, A5));
+        assert_eq!(board.get_fen(), "8/8/8/n7/8/8/8/8 w - - 0 0");
+        assert_eq!(
+            bit_board::is_bit_set(board.bishops[White], A5.into()),
+            false,
+            "bishop was not cleared"
+        );
+    }
+
+    #[test]
+    fn do_move_pawn_promotion() {
+        for (color, prom_to, src, dst) in [
+            (White, Knight, A7, A8),
+            (White, Queen, B7, B8),
+            (Black, Rook, H2, H1),
+        ] {
+            let mut board = Board::new_empty();
+            board.set(color, Pawn, src);
+
+            board.do_move(Move::new_prom(color, src, dst, prom_to));
+            assert_eq!(board.get(dst), Some(PieceInstance::new(color, prom_to)));
+            assert_eq!(
+                bit_board::is_bit_set(board.pawns[color], dst.into()),
+                false,
+                "promoted pawn was not cleared",
+            );
+        }
     }
 }

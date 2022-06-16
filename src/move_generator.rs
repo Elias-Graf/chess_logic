@@ -1283,19 +1283,19 @@ mod tests {
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct Move {
-    destination: usize,
+    dst: usize,
     is_castle: bool,
     is_double_push: bool,
     is_en_passant: bool,
     piece: Piece,
     piece_color: Color,
-    promote_to: Option<Piece>,
-    source: usize,
+    prom_to: Option<Piece>,
+    src: usize,
 }
 
 impl Move {
     pub fn dst(&self) -> usize {
-        self.destination
+        self.dst
     }
 
     pub fn is_castle(&self) -> bool {
@@ -1312,14 +1312,14 @@ impl Move {
 
     pub fn new(color: Color, piece: Piece, src: impl BoardPos, dst: impl BoardPos) -> Self {
         Self {
-            destination: dst.into(),
+            dst: dst.into(),
             is_castle: false,
             is_double_push: false,
             is_en_passant: false,
             piece,
             piece_color: color,
-            promote_to: None,
-            source: src.into(),
+            prom_to: None,
+            src: src.into(),
         }
     }
 
@@ -1344,7 +1344,7 @@ impl Move {
         promote_to: Piece,
     ) -> Self {
         Self {
-            promote_to: Some(promote_to),
+            prom_to: Some(promote_to),
             ..Self::new(color, Pawn, src, dst)
         }
     }
@@ -1357,8 +1357,15 @@ impl Move {
         self.piece_color
     }
 
+    /// The piece that the pawn should be promoted to.
+    /// 
+    /// Is only set when the move is a promotion.
+    pub fn prom_to(&self) -> Option<Piece> {
+        self.prom_to
+    }
+
     pub fn promote_to(&self) -> Option<Piece> {
-        self.promote_to
+        self.prom_to
     }
 
     pub fn set_is_castle(&mut self, val: bool) {
@@ -1382,19 +1389,19 @@ impl Move {
     }
 
     pub fn set_promote_to(&mut self, val: Option<Piece>) {
-        self.promote_to = val;
+        self.prom_to = val;
     }
 
     pub fn set_source(&mut self, val: usize) {
-        self.source = val;
+        self.src = val;
     }
 
     pub fn set_target(&mut self, val: usize) {
-        self.destination = val;
+        self.dst = val;
     }
 
     pub fn src(&self) -> usize {
-        self.source
+        self.src
     }
 }
 
@@ -1413,7 +1420,7 @@ impl Display for Move {
             write!(f, " (en passant)")?;
         }
 
-        if let Some(promote_to) = self.promote_to {
+        if let Some(promote_to) = self.prom_to {
             write!(f, " [promote to: '{:?}']", promote_to)?;
         }
 
