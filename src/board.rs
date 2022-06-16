@@ -3,7 +3,14 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use crate::{bit_board, move_generator::Move, piece, square::Square, Color, Piece};
+use crate::{
+    bit_board::{self, NORTH, SOUTH},
+    move_generator::Move,
+    piece,
+    square::Square,
+    Color, Piece,
+};
+use Color::*;
 use Piece::*;
 
 pub type BitBoardPerColor = [u64; 2];
@@ -84,6 +91,7 @@ impl Board {
 
     pub fn do_move(&mut self, mv: Move) {
         let mv_color = mv.piece_color();
+        let opp_color = mv_color.opposing();
         let mv_dst = mv.dst();
 
         // Move the piece
@@ -92,7 +100,17 @@ impl Board {
 
         // Remove (potentially) captured piece on the destination position
         for piece in [Bishop, King, Knight, Pawn, Queen, Rook] {
-            self.clear(mv_color.opposing(), piece, mv_dst);
+            self.clear(opp_color, piece, mv_dst);
+        }
+
+        // Handle en passant
+        if mv.is_en_passant() {
+            let en_pass_cap_idx = match mv_color {
+                White => mv_dst + SOUTH,
+                Black => mv_dst - NORTH,
+            };
+
+            self.clear(opp_color, Pawn, en_pass_cap_idx);
         }
 
         // Handle pawn promotions
@@ -342,11 +360,13 @@ impl PieceInstance {
 
 #[cfg(test)]
 mod tests {
-    use crate::fen::Fen;
+    use crate::{
+        bit_board::{NORTH, SOUTH},
+        fen::Fen,
+    };
 
     use super::*;
 
-    use Color::*;
     use Square::*;
 
     #[test]
@@ -543,6 +563,24 @@ mod tests {
             false,
             "bishop was not cleared"
         );
+    }
+
+    #[test]
+    fn do_move_en_passant() {
+        for (color, src, dst) in [(White, A5, B6), (White, B5, C6), (Black, A4, B3)] {
+            let en_pass_cap_idx = match color {
+                White => usize::from(dst) + SOUTH,
+                Black => usize::from(dst) - NORTH,
+            };
+
+            let mut board = Board::new_empty();
+            board.set(color, Pawn, src);
+            board.set(color.opposing(), Pawn, en_pass_cap_idx);
+            board.en_passant_target_idx = Some(dst.into());
+
+            board.do_move(Move::new_en_pass(color, src, dst));
+            assert_eq!(board.get(en_pass_cap_idx), None);
+        }
     }
 
     #[test]
