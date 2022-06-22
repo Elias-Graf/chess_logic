@@ -1358,7 +1358,7 @@ impl Move {
     }
 
     /// The piece that the pawn should be promoted to.
-    /// 
+    ///
     /// Is only set when the move is a promotion.
     pub fn prom_to(&self) -> Option<Piece> {
         self.prom_to

@@ -108,6 +108,20 @@ impl Board {
             self.clear(opp_color, piece, mv_dst);
         }
 
+        // Handle castle
+        if mv.is_castle() {
+            let (rook_src, rook_dst) = match mv_dst {
+                2  /* Square::C8 */ => (Square::A8, Square::D8),
+                6  /* Square::G8 */ => (Square::H8, Square::F8),
+                58 /* Square::C1 */ => (Square::A1, Square::D1),
+                62 /* Square::G1 */ =>  (Square::H1, Square::F1),
+                _ => panic!("invalid castle destination '{:?}'", Square::try_from(mv_dst)),
+            };
+
+            self.clear(mv_color, Rook, rook_src);
+            self.set(mv_color, Rook, rook_dst);
+        }
+
         // Handle double pawn push (mark en passant target)
         if mv.is_double_push() {
             self.en_passant_target_idx = Some(match mv_color {
@@ -576,6 +590,41 @@ mod tests {
             false,
             "bishop was not cleared"
         );
+    }
+
+    #[test]
+    fn do_move_castle() {
+        let mut board_black_king = Board::new_empty();
+        let mut board_black_queen = Board::new_empty();
+        let mut board_white_king = Board::new_empty();
+        let mut board_white_queen = Board::new_empty();
+        board_black_king.can_black_castle_king_side = true;
+        board_black_queen.can_black_castle_queen_side = true;
+        board_white_king.can_black_castle_king_side = true;
+        board_white_queen.can_white_castle_queen_side = true;
+
+        for (mut board, color, king_src, king_dst, rook_src, rook_dst) in [
+            (board_white_king, White, E1, G1, H1, F1),
+            (board_white_queen, White, E1, C1, A1, D1),
+            (board_black_king, Black, E8, G8, H8, F8),
+            (board_black_queen, Black, E8, C8, A8, D8),
+        ] {
+            board.set(color, Rook, rook_src);
+            board.set(color, King, king_src);
+
+            board.do_move(Move::new_castle(color, king_src, king_dst));
+
+            assert_eq!(
+                board.get(rook_src),
+                None,
+                "rook was not removed from old position"
+            );
+            assert_eq!(
+                board.get(rook_dst),
+                Some(PieceInstance::new(color, Rook)),
+                "rook was not moved to new position"
+            );
+        }
     }
 
     #[test]
