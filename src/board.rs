@@ -89,6 +89,11 @@ impl Board {
         bit_board::clear_bit(&mut bit_board[color], pos.into());
     }
 
+    /// Executes a given move.
+    ///
+    /// The moves are simply executed without any additional validation. This can
+    /// be especially problematic when performing special moves like en passant,
+    /// or a castle. Be sure to only call with valid moves.
     pub fn do_move(&mut self, mv: Move) {
         let mv_color = mv.piece_color();
         let opp_color = mv_color.opposing();
@@ -101,6 +106,14 @@ impl Board {
         // Remove (potentially) captured piece on the destination position
         for piece in [Bishop, King, Knight, Pawn, Queen, Rook] {
             self.clear(opp_color, piece, mv_dst);
+        }
+
+        // Handle double pawn push (mark en passant target)
+        if mv.is_double_push() {
+            self.en_passant_target_idx = Some(match mv_color {
+                Black => mv_dst - NORTH,
+                White => mv_dst + SOUTH,
+            });
         }
 
         // Handle en passant
@@ -563,6 +576,26 @@ mod tests {
             false,
             "bishop was not cleared"
         );
+    }
+
+    #[test]
+    fn do_move_double_push_adds_en_passant_target() {
+        for (color, src) in [(White, A2), (White, B2), (Black, A7)] {
+            let (dst, en_passant_target_idx) = match color {
+                Black => (usize::from(src) + SOUTH * 2, usize::from(src) + SOUTH),
+                White => (usize::from(src) - NORTH * 2, usize::from(src) - NORTH),
+            };
+
+            let mut board = Board::new_empty();
+            board.set(color, Pawn, src);
+
+            let mut mv = Move::new(color, Pawn, src, dst);
+            mv.set_is_double_push(true);
+
+            board.do_move(mv);
+
+            assert_eq!(board.en_passant_target_idx, Some(en_passant_target_idx));
+        }
     }
 
     #[test]
