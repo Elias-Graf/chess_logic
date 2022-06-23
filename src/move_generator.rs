@@ -17,17 +17,17 @@ use Square::*;
 
 pub fn all_moves(board: &Board) -> Vec<Move> {
     let all_occupancies = board.all_occupancies();
-    let friendly_color = match board.is_whites_turn {
+    let fren_color = match board.is_whites_turn {
         true => Color::White,
         false => Color::Black,
     };
-    let opp_color = friendly_color.opposing();
-    let friendly_occupancies = board.bishops[friendly_color]
-        | board.king[friendly_color]
-        | board.knights[friendly_color]
-        | board.pawns[friendly_color]
-        | board.queens[friendly_color]
-        | board.rooks[friendly_color];
+    let opp_color = fren_color.opposing();
+    let fren_occ = board.bishops[fren_color]
+        | board.king[fren_color]
+        | board.knights[fren_color]
+        | board.pawns[fren_color]
+        | board.queens[fren_color]
+        | board.rooks[fren_color];
     let opp_occupancies = board.bishops[opp_color]
         | board.king[opp_color]
         | board.knights[opp_color]
@@ -37,42 +37,18 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
 
     let mut moves = Vec::new();
 
-    add_bishop_moves(
-        board,
-        friendly_color,
-        all_occupancies,
-        friendly_occupancies,
-        &mut moves,
-    );
-    add_king_moves(
-        board,
-        friendly_color,
-        all_occupancies,
-        opp_color,
-        &mut moves,
-    );
-    add_knight_moves(board, friendly_color, &mut moves);
+    add_bishop_moves(board, fren_color, all_occupancies, fren_occ, &mut moves);
+    add_king_moves(board, fren_color, all_occupancies, opp_color, &mut moves);
+    add_knight_moves(board, fren_occ, fren_color, &mut moves);
     add_pawn_moves(
         board,
         all_occupancies,
         opp_occupancies,
-        friendly_color,
+        fren_color,
         &mut moves,
     );
-    add_queen_moves(
-        board,
-        friendly_color,
-        all_occupancies,
-        friendly_occupancies,
-        &mut moves,
-    );
-    add_rook_moves(
-        board,
-        friendly_color,
-        all_occupancies,
-        friendly_occupancies,
-        &mut moves,
-    );
+    add_queen_moves(board, fren_color, all_occupancies, fren_occ, &mut moves);
+    add_rook_moves(board, fren_color, all_occupancies, fren_occ, &mut moves);
 
     return moves;
 }
@@ -131,10 +107,10 @@ fn add_king_moves(
     }
 }
 
-fn add_knight_moves(board: &Board, friendly_color: Color, moves: &mut Vec<Move>) {
-    for src_i in SetBitsIter(board.knights[friendly_color]) {
-        for dst_i in SetBitsIter(piece::get_knight_attack_mask_for(src_i)) {
-            moves.push(Move::new(friendly_color, Knight, src_i, dst_i));
+fn add_knight_moves(board: &Board, fren_occ: u64, fren_color: Color, moves: &mut Vec<Move>) {
+    for src_i in SetBitsIter(board.knights[fren_color]) {
+        for dst_i in SetBitsIter(piece::get_knight_attack_mask_for(src_i) & !fren_occ) {
+            moves.push(Move::new(fren_color, Knight, src_i, dst_i));
         }
     }
 }
@@ -826,63 +802,34 @@ mod tests {
 
     #[test]
     fn white_knight() {
-        let mut board = Board::new_empty();
-        board.set(White, Knight, B1);
-        board.set(White, Knight, F3);
+        let board = Board::from_fen("8/8/8/8/8/8/3N4/1N6 w - - 0 0").unwrap();
 
         assert_moves_eq(
             &all_moves(&board),
             &[
                 Move::new(White, Knight, B1, A3),
                 Move::new(White, Knight, B1, C3),
-                Move::new(White, Knight, B1, D2),
-                Move::new(White, Knight, F3, D2),
-                Move::new(White, Knight, F3, D4),
-                Move::new(White, Knight, F3, E1),
-                Move::new(White, Knight, F3, E5),
-                Move::new(White, Knight, F3, G1),
-                Move::new(White, Knight, F3, G5),
-                Move::new(White, Knight, F3, H2),
-                Move::new(White, Knight, F3, H4),
-            ],
-        );
-    }
-
-    #[test]
-    fn white_knight_only_white() {
-        let mut board = Board::new_empty();
-        board.set(White, Knight, B1);
-        board.set(Black, Knight, F3);
-
-        assert_moves_eq(
-            &all_moves(&board),
-            &[
-                Move::new(White, Knight, B1, A3),
-                Move::new(White, Knight, B1, C3),
-                Move::new(White, Knight, B1, D2),
+                Move::new(White, Knight, D2, B3),
+                Move::new(White, Knight, D2, C4),
+                Move::new(White, Knight, D2, E4),
+                Move::new(White, Knight, D2, F1),
+                Move::new(White, Knight, D2, F3),
             ],
         );
     }
 
     #[test]
     fn black_knight() {
-        let mut board = Board::new_empty();
-        board.is_whites_turn = false;
-        board.set(Black, Knight, C6);
-        board.set(Black, Knight, G8);
+        let board = Board::from_fen("6n1/4n3/8/8/8/8/8/8 b - - 0 0").unwrap();
 
         assert_moves_eq(
             &all_moves(&board),
             &[
-                Move::new(Black, Knight, C6, A5),
-                Move::new(Black, Knight, C6, A7),
-                Move::new(Black, Knight, C6, B4),
-                Move::new(Black, Knight, C6, B8),
-                Move::new(Black, Knight, C6, D4),
-                Move::new(Black, Knight, C6, D8),
-                Move::new(Black, Knight, C6, E5),
-                Move::new(Black, Knight, C6, E7),
-                Move::new(Black, Knight, G8, E7),
+                Move::new(Black, Knight, E7, C6),
+                Move::new(Black, Knight, E7, C8),
+                Move::new(Black, Knight, E7, D5),
+                Move::new(Black, Knight, E7, F5),
+                Move::new(Black, Knight, E7, G6),
                 Move::new(Black, Knight, G8, F6),
                 Move::new(Black, Knight, G8, H6),
             ],
