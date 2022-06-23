@@ -166,6 +166,8 @@ impl Board {
             self.clear(mv_color, Pawn, mv_dst);
             self.set(mv_color, prom_to, mv_dst);
         }
+
+        self.is_whites_turn = !self.is_whites_turn;
     }
 
     /// Get the pice ([`PieceInstance`]) on the specified location
@@ -582,19 +584,19 @@ mod tests {
 
     #[test]
     fn do_move() {
-        let mut board = Board::new_empty();
+        let mut board = Board::from_fen("1n6/7p/8/8/8/8/P7/8 w - - 0 0").unwrap();
         board.set(White, Pawn, A2);
         board.set(Black, Pawn, H7);
         board.set(Black, Knight, B8);
 
         board.do_move(Move::new(White, Pawn, A2, A3));
-        assert_eq!(board.get_fen(), "1n6/7p/8/8/8/P7/8/8 w - - 0 0");
+        assert_eq!(board.get_fen(), "1n6/7p/8/8/8/P7/8/8 b - - 0 0");
 
         board.do_move(Move::new(Black, Pawn, H7, H6));
         assert_eq!(board.get_fen(), "1n6/8/7p/8/8/P7/8/8 w - - 0 0");
 
         board.do_move(Move::new(Black, Knight, B8, A6));
-        assert_eq!(board.get_fen(), "8/8/n6p/8/8/P7/8/8 w - - 0 0");
+        assert_eq!(board.get_fen(), "8/8/n6p/8/8/P7/8/8 b - - 0 0");
     }
 
     #[test]
@@ -602,13 +604,13 @@ mod tests {
         let mut board = Board::from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 0").unwrap();
 
         board.do_move(Move::new(White, Rook, H1, H2));
-        assert_eq!(board.get_fen(), "r3k2r/8/8/8/8/8/7R/R3K3 w Qkq - 0 0");
+        assert_eq!(board.get_fen(), "r3k2r/8/8/8/8/8/7R/R3K3 b Qkq - 0 0");
 
         board.do_move(Move::new(White, Rook, A1, A2));
         assert_eq!(board.get_fen(), "r3k2r/8/8/8/8/8/R6R/4K3 w kq - 0 0");
 
         board.do_move(Move::new(Black, Rook, H8, H7));
-        assert_eq!(board.get_fen(), "r3k3/7r/8/8/8/8/R6R/4K3 w q - 0 0");
+        assert_eq!(board.get_fen(), "r3k3/7r/8/8/8/8/R6R/4K3 b q - 0 0");
 
         board.do_move(Move::new(Black, Rook, A8, A7));
         assert_eq!(board.get_fen(), "4k3/r6r/8/8/8/8/R6R/4K3 w - - 0 0");
@@ -618,11 +620,11 @@ mod tests {
     fn do_move_castling_rights_removed_king_moved() {
         let mut board = Board::from_fen("4k3/8/8/8/8/8/8/4K3 w KQkq - 0 0").unwrap();
         board.do_move(Move::new(White, King, E1, E2));
-        assert_eq!(board.get_fen(), "4k3/8/8/8/8/8/4K3/8 w kq - 0 0");
+        assert_eq!(board.get_fen(), "4k3/8/8/8/8/8/4K3/8 b kq - 0 0");
 
         let mut board = Board::from_fen("4k3/8/8/8/8/8/8/4K3 w KQkq - 0 0").unwrap();
         board.do_move(Move::new(Black, King, E8, E7));
-        assert_eq!(board.get_fen(), "8/4k3/8/8/8/8/8/4K3 w KQ - 0 0");
+        assert_eq!(board.get_fen(), "8/4k3/8/8/8/8/8/4K3 b KQ - 0 0");
     }
 
     #[test]
@@ -643,7 +645,7 @@ mod tests {
         let mut board = Board::from_fen("8/8/2n5/r7/8/8/3B4/8 w - - 0 0").unwrap();
 
         board.do_move(Move::new(White, Bishop, D2, A5));
-        assert_eq!(board.get_fen(), "8/8/2n5/B7/8/8/8/8 w - - 0 0");
+        assert_eq!(board.get_fen(), "8/8/2n5/B7/8/8/8/8 b - - 0 0");
 
         board.do_move(Move::new(Black, Knight, C6, A5));
         assert_eq!(board.get_fen(), "8/8/8/n7/8/8/8/8 w - - 0 0");
@@ -745,5 +747,16 @@ mod tests {
                 "promoted pawn was not cleared",
             );
         }
+    }
+
+    #[test]
+    fn do_move_switches_active_side() {
+        let mut board = Board::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 0").unwrap();
+
+        board.do_move(Move::new(White, King, E1, E2));
+        assert_eq!(board.get_fen(), "4k3/8/8/8/8/8/4K3/8 b - - 0 0");
+
+        board.do_move(Move::new(Black, King, E8, E7));
+        assert_eq!(board.get_fen(), "8/4k3/8/8/8/8/4K3/8 w - - 0 0");
     }
 }
