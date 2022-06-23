@@ -189,7 +189,7 @@ fn add_pawn_moves(
     }
 
     fn can_black_do_dbl_push(i: usize) -> bool {
-        i > 7 && i < 15
+        i > usize::from(A7) - 1 && i < usize::from(H7) + 1
     }
 
     fn can_white_do_dbl_push(i: usize) -> bool {
@@ -315,44 +315,49 @@ mod tests {
     }
 
     #[test]
-    fn white_pawn_double_push() {
-        let mut board = Board::new_empty();
-        board.set(Color::White, Piece::Pawn, A2);
+    fn pawn_double_push_able() {
+        for color in [Black, White] {
+            let src_range = match color {
+                Black => usize::from(A7)..usize::from(H7) + 1,
+                White => usize::from(A2)..usize::from(H2) + 1,
+            };
 
-        assert_moves_eq(
-            &all_moves(&board),
-            &vec![
-                Move::new(White, Pawn, A2, A3),
-                Move::new(White, Pawn, A2, A4),
-            ],
-        );
+            for src_idx in src_range {
+                let mut board = Board::new_empty();
+                board.is_whites_turn = color == White;
+                board.set(color, Pawn, src_idx);
 
-        let mut board = Board::new_empty();
-        board.set(Color::White, Piece::Pawn, B2);
+                let (dst_1, dst_2) = match color {
+                    Black => (src_idx + SOUTH, src_idx + SOUTH * 2),
+                    White => (src_idx - NORTH, src_idx - NORTH * 2),
+                };
 
-        assert_moves_eq(
-            &all_moves(&board),
-            &vec![
-                Move::new(White, Pawn, B2, B3),
-                Move::new(White, Pawn, B2, B4),
-            ],
-        );
+                assert_moves_eq(
+                    &all_moves(&board),
+                    &vec![
+                        Move::new(color, Pawn, src_idx, dst_1),
+                        Move::new(color, Pawn, src_idx, dst_2),
+                    ],
+                );
+            }
+        }
     }
 
     #[test]
-    fn black_pawn_double_push() {
-        for src_idx in [usize::from(A7), B7.into()] {
-            let mut board = Board::new_empty();
-            board.is_whites_turn = false;
-            board.set(Color::Black, Piece::Pawn, src_idx);
+    fn pawn_double_push_unable() {
+        for color in [Black, White] {
+            let poses = match color {
+                Black => [usize::from(A7) - 1, usize::from(H7) + 1],
+                White => [usize::from(A2) - 1, usize::from(H2) + 1],
+            };
 
-            assert_moves_eq(
-                &all_moves(&board),
-                &vec![
-                    Move::new(Black, Pawn, src_idx, src_idx + bit_board::SOUTH),
-                    Move::new(Black, Pawn, src_idx, src_idx + bit_board::SOUTH * 2),
-                ],
-            );
+            for pos in poses {
+                let mut board = Board::new_empty();
+                board.is_whites_turn = color == White;
+                board.set(color, Pawn, pos);
+
+                assert_eq!(all_moves(&board).len(), 1);
+            }
         }
     }
 
