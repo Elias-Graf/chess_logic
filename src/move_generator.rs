@@ -12,6 +12,9 @@ use crate::{
 use Piece::*;
 use Square::*;
 
+// TODO: currently semi-legal moves (moves that put the king in check) are possible,
+// and not filtered out anywhere.
+
 pub fn all_moves(board: &Board) -> Vec<Move> {
     let all_occupancies = board.all_occupancies();
     let friendly_color = match board.is_whites_turn {
