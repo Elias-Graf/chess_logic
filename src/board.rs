@@ -97,11 +97,32 @@ impl Board {
     pub fn do_move(&mut self, mv: Move) {
         let mv_color = mv.piece_color();
         let opp_color = mv_color.opposing();
+        let mv_src = mv.src();
         let mv_dst = mv.dst();
+        let mv_piece = mv.piece();
 
         // Move the piece
-        self.clear(mv_color, mv.piece(), mv.src());
-        self.set(mv_color, mv.piece(), mv_dst);
+        self.clear(mv_color, mv_piece, mv_src);
+        self.set(mv_color, mv_piece, mv_dst);
+
+        // (Potentially) clear castling rights
+        if mv_piece == Rook {
+            match mv_src {
+                0  /* Square::A8 */ => self.can_black_castle_queen_side = false,
+                7  /* Square::H8 */ => self.can_black_castle_king_side = false,
+                56 /* Square::A1 */ => self.can_white_castle_queen_side = false,
+                63 /* Square::H1 */ => self.can_white_castle_king_side = false,
+                _ => (),
+            };
+        } else if mv_piece == King {
+            if mv_color == Black {
+                self.can_black_castle_king_side = false;
+                self.can_black_castle_queen_side = false;
+            } else {
+                self.can_white_castle_king_side = false;
+                self.can_white_castle_queen_side = false;
+            }
+        }
 
         // Remove (potentially) captured piece on the destination position
         for piece in [Bishop, King, Knight, Pawn, Queen, Rook] {
@@ -114,7 +135,7 @@ impl Board {
                 2  /* Square::C8 */ => (Square::A8, Square::D8),
                 6  /* Square::G8 */ => (Square::H8, Square::F8),
                 58 /* Square::C1 */ => (Square::A1, Square::D1),
-                62 /* Square::G1 */ =>  (Square::H1, Square::F1),
+                62 /* Square::G1 */ => (Square::H1, Square::F1),
                 _ => panic!("invalid castle destination '{:?}'", Square::try_from(mv_dst)),
             };
 
@@ -574,6 +595,47 @@ mod tests {
 
         board.do_move(Move::new(Black, Knight, B8, A6));
         assert_eq!(board.get_fen(), "8/8/n6p/8/8/P7/8/8 w - - 0 0");
+    }
+
+    #[test]
+    fn do_move_castling_rights_removed_rook_moved() {
+        let mut board = Board::from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 0").unwrap();
+
+        board.do_move(Move::new(White, Rook, H1, H2));
+        assert_eq!(board.get_fen(), "r3k2r/8/8/8/8/8/7R/R3K3 w Qkq - 0 0");
+
+        board.do_move(Move::new(White, Rook, A1, A2));
+        assert_eq!(board.get_fen(), "r3k2r/8/8/8/8/8/R6R/4K3 w kq - 0 0");
+
+        board.do_move(Move::new(Black, Rook, H8, H7));
+        assert_eq!(board.get_fen(), "r3k3/7r/8/8/8/8/R6R/4K3 w q - 0 0");
+
+        board.do_move(Move::new(Black, Rook, A8, A7));
+        assert_eq!(board.get_fen(), "4k3/r6r/8/8/8/8/R6R/4K3 w - - 0 0");
+    }
+
+    #[test]
+    fn do_move_castling_rights_removed_king_moved() {
+        let mut board = Board::from_fen("4k3/8/8/8/8/8/8/4K3 w KQkq - 0 0").unwrap();
+        board.do_move(Move::new(White, King, E1, E2));
+        assert_eq!(board.get_fen(), "4k3/8/8/8/8/8/4K3/8 w kq - 0 0");
+
+        let mut board = Board::from_fen("4k3/8/8/8/8/8/8/4K3 w KQkq - 0 0").unwrap();
+        board.do_move(Move::new(Black, King, E8, E7));
+        assert_eq!(board.get_fen(), "8/4k3/8/8/8/8/8/4K3 w KQ - 0 0");
+    }
+
+    #[test]
+    fn do_move_castling_rights_not_removed_normal_move() {
+        let mut board = Board::from_fen("r3k2r/p7/8/8/8/8/P7/R3K2R w KQkq - 0 0").unwrap();
+
+        board.do_move(Move::new(White, Pawn, A2, A3));
+        assert!(board.can_white_castle_king_side);
+        assert!(board.can_white_castle_queen_side);
+
+        board.do_move(Move::new(Black, Pawn, A7, A6));
+        assert!(board.can_black_castle_king_side);
+        assert!(board.can_black_castle_queen_side);
     }
 
     #[test]
