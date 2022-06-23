@@ -16,7 +16,7 @@ use Square::*;
 // and not filtered out anywhere.
 
 pub fn all_moves(board: &Board) -> Vec<Move> {
-    let all_occupancies = board.all_occupancies();
+    let all_occ = board.all_occupancies();
     let fren_color = match board.is_whites_turn {
         true => Color::White,
         false => Color::Black,
@@ -37,18 +37,12 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
 
     let mut moves = Vec::new();
 
-    add_bishop_moves(board, fren_color, all_occupancies, fren_occ, &mut moves);
-    add_king_moves(board, fren_color, all_occupancies, opp_color, &mut moves);
+    add_bishop_moves(board, fren_color, all_occ, fren_occ, &mut moves);
+    add_king_moves(board, fren_color, fren_occ, all_occ, opp_color, &mut moves);
     add_knight_moves(board, fren_occ, fren_color, &mut moves);
-    add_pawn_moves(
-        board,
-        all_occupancies,
-        opp_occupancies,
-        fren_color,
-        &mut moves,
-    );
-    add_queen_moves(board, fren_color, all_occupancies, fren_occ, &mut moves);
-    add_rook_moves(board, fren_color, all_occupancies, fren_occ, &mut moves);
+    add_pawn_moves(board, all_occ, opp_occupancies, fren_color, &mut moves);
+    add_queen_moves(board, fren_color, all_occ, fren_occ, &mut moves);
+    add_rook_moves(board, fren_color, all_occ, fren_occ, &mut moves);
 
     return moves;
 }
@@ -73,13 +67,15 @@ fn add_bishop_moves(
 
 fn add_king_moves(
     board: &Board,
-    friendly_color: Color,
-    all_occupancies: u64,
+    fren_color: Color,
+    fren_occ: u64,
+    all_occ: u64,
     opp_color: Color,
     moves: &mut Vec<Move>,
 ) {
+    // TODO: extract into function 'extract_king_moves_castle'
     let mut castle = |required_clear_mask: u64, not_atk: &[Square], src: Square, dst: Square| {
-        if bit_board::has_set_bits(all_occupancies & required_clear_mask) {
+        if bit_board::has_set_bits(all_occ & required_clear_mask) {
             return;
         }
 
@@ -87,7 +83,7 @@ fn add_king_moves(
             return;
         }
 
-        moves.push(Move::new_castle(friendly_color, src, dst));
+        moves.push(Move::new_castle(fren_color, src, dst));
     };
 
     // TODO: Check if it's actually whites turn
@@ -104,6 +100,16 @@ fn add_king_moves(
     }
     if board.can_black_castle_king_side {
         castle(96, &[E8, F8, G8], E8, G8);
+    }
+
+    add_king_moves_normal(board, fren_color, fren_occ, moves);
+}
+
+fn add_king_moves_normal(board: &Board, fren_color: Color, fren_occ: u64, moves: &mut Vec<Move>) {
+    for src_i in SetBitsIter(board.king[fren_color]) {
+        for dst_i in SetBitsIter(piece::get_king_attack_mask_for(src_i) & !fren_occ) {
+            moves.push(Move::new(fren_color, King, src_i, dst_i));
+        }
     }
 }
 
@@ -570,10 +576,63 @@ mod tests {
     }
 
     #[test]
+    fn king() {
+        for (color, king_pos, blocker_pos, moves) in [
+            (
+                Black,
+                E8,
+                D8,
+                &vec![
+                    Move::new(Black, King, E8, D7),
+                    Move::new(Black, King, E8, E7),
+                    Move::new(Black, King, E8, F7),
+                    Move::new(Black, King, E8, F8),
+                    Move::new(Black, Pawn, D8, D7),
+                ],
+            ),
+            (
+                Black,
+                E7,
+                E8,
+                &vec![
+                    Move::new(Black, King, E7, D8),
+                    Move::new(Black, King, E7, D7),
+                    Move::new(Black, King, E7, D6),
+                    Move::new(Black, King, E7, E6),
+                    Move::new(Black, King, E7, F8),
+                    Move::new(Black, King, E7, F7),
+                    Move::new(Black, King, E7, F6),
+                ],
+            ),
+            (
+                White,
+                E1,
+                F1,
+                &vec![
+                    Move::new(White, King, E1, D1),
+                    Move::new(White, King, E1, D2),
+                    Move::new(White, King, E1, E2),
+                    Move::new(White, King, E1, F2),
+                    Move::new(White, Pawn, F1, F2),
+                ],
+            ),
+        ] {
+            let mut board = Board::new_empty();
+            board.is_whites_turn = color == White;
+            board.set(color, King, king_pos);
+            board.set(color, Pawn, blocker_pos);
+
+            assert_moves_eq(&all_moves(&board), moves);
+        }
+    }
+
+    // TODO: refactor castle tests
+    #[test]
     fn white_king_queen_side_castle() {
         let board = Board::from_fen("8/8/8/8/8/8/8/R3K3 w Q - 0 0").unwrap();
 
         let mut expected_moves = Vec::new();
+        add_king_moves_normal(&board, White, 0, &mut expected_moves);
         add_rook_moves(
             &board,
             White,
@@ -590,17 +649,18 @@ mod tests {
     fn black_king_queen_side_castle() {
         let board = Board::from_fen("r3k3/8/8/8/8/8/8/8 b q - 0 0").unwrap();
 
-        let mut expected_moves = Vec::new();
+        let mut exp_moves = Vec::new();
+        add_king_moves_normal(&board, Black, 0, &mut exp_moves);
         add_rook_moves(
             &board,
             Black,
             board.all_occupancies(),
             board.king[Black],
-            &mut expected_moves,
+            &mut exp_moves,
         );
-        expected_moves.push(Move::new_castle(Black, E8, C8));
+        exp_moves.push(Move::new_castle(Black, E8, C8));
 
-        assert_moves_eq(&all_moves(&board), &expected_moves);
+        assert_moves_eq(&all_moves(&board), &exp_moves);
     }
 
     #[test]
@@ -611,16 +671,17 @@ mod tests {
             let mut board = board.clone();
             board.set(Black, Rook, i);
 
-            let mut rook_moves = Vec::new();
+            let mut exp_moves = Vec::new();
+            add_king_moves_normal(&board, White, 0, &mut exp_moves);
             add_rook_moves(
                 &board,
                 White,
                 board.all_occupancies(),
                 board.king[White],
-                &mut rook_moves,
+                &mut exp_moves,
             );
 
-            assert_moves_eq(&all_moves(&board), &rook_moves);
+            assert_moves_eq(&all_moves(&board), &exp_moves);
         }
     }
 
@@ -632,16 +693,17 @@ mod tests {
             let mut board = board.clone();
             board.set(White, Rook, i);
 
-            let mut rook_moves = Vec::new();
+            let mut exp_moves = Vec::new();
+            add_king_moves_normal(&board, Black, 0, &mut exp_moves);
             add_rook_moves(
                 &board,
                 Black,
                 board.all_occupancies(),
                 board.king[Black],
-                &mut rook_moves,
+                &mut exp_moves,
             );
 
-            assert_moves_eq(&all_moves(&board), &rook_moves);
+            assert_moves_eq(&all_moves(&board), &exp_moves);
         }
     }
 
@@ -653,16 +715,17 @@ mod tests {
             let mut board = board.clone();
             board.set(Black, Rook, i - NORTH);
 
-            let mut rook_moves = Vec::new();
+            let mut exp_moves = Vec::new();
+            add_king_moves_normal(&board, White, 0, &mut exp_moves);
             add_rook_moves(
                 &board,
                 White,
                 board.all_occupancies(),
                 board.king[White],
-                &mut rook_moves,
+                &mut exp_moves,
             );
 
-            assert_moves_eq(&all_moves(&board), &rook_moves);
+            assert_moves_eq(&all_moves(&board), &exp_moves);
         }
     }
 
@@ -674,16 +737,17 @@ mod tests {
             let mut board = board.clone();
             board.set(White, Rook, i + SOUTH);
 
-            let mut rook_moves = Vec::new();
+            let mut exp_moves = Vec::new();
+            add_king_moves_normal(&board, Black, 0, &mut exp_moves);
             add_rook_moves(
                 &board,
                 Black,
                 board.all_occupancies(),
                 board.king[Black],
-                &mut rook_moves,
+                &mut exp_moves,
             );
 
-            assert_moves_eq(&all_moves(&board), &rook_moves);
+            assert_moves_eq(&all_moves(&board), &exp_moves);
         }
     }
 
@@ -691,17 +755,18 @@ mod tests {
     fn white_king_king_side_castle() {
         let board = Board::from_fen("8/8/8/8/8/8/8/4K2R w K - 0 0").unwrap();
 
-        let mut expected_moves = Vec::new();
+        let mut exp_moves = Vec::new();
+        add_king_moves_normal(&board, White, 0, &mut exp_moves);
         add_rook_moves(
             &board,
             White,
             board.all_occupancies(),
             board.king[White],
-            &mut expected_moves,
+            &mut exp_moves,
         );
-        expected_moves.push(Move::new_castle(White, E1, G1));
+        exp_moves.push(Move::new_castle(White, E1, G1));
 
-        assert_moves_eq(&all_moves(&board), &expected_moves);
+        assert_moves_eq(&all_moves(&board), &exp_moves);
     }
 
     #[test]
@@ -717,6 +782,11 @@ mod tests {
             &mut expected_moves,
         );
         expected_moves.push(Move::new_castle(Black, E8, G8));
+        expected_moves.push(Move::new(Black, King, E8, D7));
+        expected_moves.push(Move::new(Black, King, E8, D8));
+        expected_moves.push(Move::new(Black, King, E8, E7));
+        expected_moves.push(Move::new(Black, King, E8, F7));
+        expected_moves.push(Move::new(Black, King, E8, F8));
 
         assert_moves_eq(&all_moves(&board), &expected_moves);
     }
@@ -729,16 +799,17 @@ mod tests {
             let mut board = board.clone();
             board.set(Black, Rook, i);
 
-            let mut rook_moves = Vec::new();
+            let mut exp_moves = Vec::new();
+            add_king_moves_normal(&board, White, 0, &mut exp_moves);
             add_rook_moves(
                 &board,
                 White,
                 board.all_occupancies(),
                 board.king[White],
-                &mut rook_moves,
+                &mut exp_moves,
             );
 
-            assert_moves_eq(&all_moves(&board), &rook_moves);
+            assert_moves_eq(&all_moves(&board), &exp_moves);
         }
     }
 
@@ -750,16 +821,17 @@ mod tests {
             let mut board = board.clone();
             board.set(White, Rook, i);
 
-            let mut rook_moves = Vec::new();
+            let mut exp_moves = Vec::new();
+            add_king_moves_normal(&board, Black, 0, &mut exp_moves);
             add_rook_moves(
                 &board,
                 Black,
                 board.all_occupancies(),
                 board.king[Black],
-                &mut rook_moves,
+                &mut exp_moves,
             );
 
-            assert_moves_eq(&all_moves(&board), &rook_moves);
+            assert_moves_eq(&all_moves(&board), &exp_moves);
         }
     }
 
@@ -771,16 +843,17 @@ mod tests {
             let mut board = board.clone();
             board.set(Black, Rook, i - NORTH);
 
-            let mut rook_moves = Vec::new();
+            let mut exp_moves = Vec::new();
+            add_king_moves_normal(&board, White, 0, &mut exp_moves);
             add_rook_moves(
                 &board,
                 White,
                 board.all_occupancies(),
                 board.king[White],
-                &mut rook_moves,
+                &mut exp_moves,
             );
 
-            assert_moves_eq(&all_moves(&board), &rook_moves);
+            assert_moves_eq(&all_moves(&board), &exp_moves);
         }
     }
 
@@ -792,16 +865,17 @@ mod tests {
             let mut board = board.clone();
             board.set(White, Rook, i + SOUTH);
 
-            let mut rook_moves = Vec::new();
+            let mut exp_moves = Vec::new();
+            add_king_moves_normal(&board, Black, 0, &mut exp_moves);
             add_rook_moves(
                 &board,
                 Black,
                 board.all_occupancies(),
                 board.king[Black],
-                &mut rook_moves,
+                &mut exp_moves,
             );
 
-            assert_moves_eq(&all_moves(&board), &rook_moves);
+            assert_moves_eq(&all_moves(&board), &exp_moves);
         }
     }
 
