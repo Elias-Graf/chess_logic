@@ -61,6 +61,10 @@ impl Board {
     ///
     /// This is achieved using the `|` (bitwise or) operator.
     pub fn all_occupancies(&self) -> u64 {
+        // TODO: This should be replaceable by:
+        // ```
+        // self.occupancies_of(Black) & self.occupancies_of(White)
+        // ```
         self.bishops[Color::Black]
             | self.king[Color::Black]
             | self.knights[Color::Black]
@@ -236,10 +240,12 @@ impl Board {
         // We can see that the bit on E5 is set on both boards, thus the square
         // D6 can be attacked by the white pawn on E5.
 
-        let all_pieces = self.all_occupancies();
+        let all_occ = self.all_occupancies();
+        let def_color = atk_color.opposing();
+        let def_occ = self.occupancies_of(def_color);
 
         if bit_board::has_set_bits(
-            piece::get_bishop_attacks_for(pos, all_pieces) & self.bishops[*atk_color],
+            piece::get_bishop_attacks_for(pos, all_occ) & self.bishops[*atk_color],
         ) {
             return true;
         }
@@ -255,8 +261,10 @@ impl Board {
         }
 
         if bit_board::has_set_bits(
-            piece::get_pawn_attacks_for(pos, &atk_color.opposing()) & self.pawns[*atk_color],
-        ) {
+            piece::get_pawn_attacks_for(pos, &def_color) & self.pawns[*atk_color],
+            // Pawn can only attack if the square is occupied
+        ) & bit_board::is_bit_set(def_occ, pos.into())
+        {
             return true;
         }
 
@@ -264,7 +272,7 @@ impl Board {
         // and not explicitly checked here.
 
         if bit_board::has_set_bits(
-            piece::get_rook_attacks_for(pos, all_pieces) & self.rooks[*atk_color],
+            piece::get_rook_attacks_for(pos, all_occ) & self.rooks[*atk_color],
         ) {
             return true;
         }
@@ -336,6 +344,15 @@ impl Board {
         board.set(Color::White, Piece::Rook, 63);
 
         board
+    }
+
+    pub fn occupancies_of(&self, color: Color) -> u64 {
+        self.bishops[color]
+            | self.king[color]
+            | self.knights[color]
+            | self.pawns[color]
+            | self.queens[color]
+            | self.rooks[color]
     }
 
     /// Set (add) a piece on the specified location
@@ -507,21 +524,42 @@ mod tests {
     }
 
     #[test]
-    fn is_pos_attacked_attacked_by_white_pawn() {
-        let mut board = Board::new_empty();
-        board.set(Color::White, Piece::Pawn, E5);
+    fn is_pos_attacked_by_pawn_no_enemy() {
+        for (color, attacks) in [(Black, [D5, F5]), (White, [D7, F7])] {
+            let mut board = Board::new_empty();
+            board.set(color, Pawn, E6);
 
-        assert_eq!(board.is_pos_attacked_by(D6, &Color::White), true);
-        assert_eq!(board.is_pos_attacked_by(F6, &Color::White), true);
+            for attack in attacks {
+                assert!(
+                    !board.is_pos_attacked_by(attack, &color),
+                    "pos '{:?}' was unjustifiably attacked by {:?} pawn",
+                    attack,
+                    color,
+                );
+            }
+        }
     }
 
     #[test]
-    fn is_pos_attacked_by_black_pawn() {
-        let mut board = Board::new_empty();
-        board.set(Color::Black, Piece::Pawn, C6);
+    fn is_pos_attacked_by_pawn_with_enemy() {
+        for (color, attacks) in [(Black, [D5, F5]), (White, [D7, F7])] {
+            let mut board = Board::new_empty();
+            board.set(color, Pawn, E6);
 
-        assert_eq!(board.is_pos_attacked_by(B5, &Color::Black), true);
-        assert_eq!(board.is_pos_attacked_by(D5, &Color::Black), true);
+            for attack in attacks {
+                let mut board = board.clone();
+                board.set(color.opposing(), Pawn, attack);
+
+                println!("{:?} {:?} attacks {:?}", color, E6, attack);
+
+                assert!(
+                    board.is_pos_attacked_by(attack, &color),
+                    "pos '{:?}' was not attacked by {:?} pawn",
+                    attack,
+                    color,
+                );
+            }
+        }
     }
 
     // The queen checks are covered by the bishop and rook checks.
