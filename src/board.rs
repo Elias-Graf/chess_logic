@@ -268,8 +268,11 @@ impl Board {
             return true;
         }
 
-        // The Queen attacks are already covered by checking bishops and rooks,
-        // and not explicitly checked here.
+        if bit_board::has_set_bits(
+            piece::get_queen_attacks_for(pos, all_occ) & self.queens[*atk_color],
+        ) {
+            return true;
+        }
 
         if bit_board::has_set_bits(
             piece::get_rook_attacks_for(pos, all_occ) & self.rooks[*atk_color],
@@ -356,6 +359,7 @@ impl Board {
     }
 
     /// Set (add) a piece on the specified location
+    // TODO: convert parameters to references
     pub fn set(&mut self, color: Color, piece: Piece, pos: impl BoardPos) {
         let i = pos.into();
 
@@ -562,8 +566,36 @@ mod tests {
         }
     }
 
-    // The queen checks are covered by the bishop and rook checks.
-    // So they are not checked explicitly here.
+    #[test]
+    fn is_pos_attacked_by_queen() {
+        for color in [Black, White] {
+            let mut board = Board::new_empty();
+            board.set(color, Queen, D5);
+
+            for pos in [D2, E5] {
+                assert!(
+                    board.is_pos_attacked_by(pos, &color),
+                    "position '{:?}' was not attacked",
+                    pos
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn is_pos_attacked_by_queen_blocked() {
+        for color in [Black, White] {
+            let mut board = Board::new_empty();
+            board.set(color, Queen, D5);
+            board.set(color, Pawn, D3);
+
+            assert!(
+                !board.is_pos_attacked_by(D2, &color),
+                "position '{:?}' was unjustifiably attacked",
+                D2
+            );
+        }
+    }
 
     #[test]
     fn is_pos_attacked_by_rook_no_blockers() {
