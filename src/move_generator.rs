@@ -22,12 +22,14 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
         false => Color::Black,
     };
     let opp_color = fren_color.opposing();
+    // TODO: replace with `board.occupancies_of(fren_color)`
     let fren_occ = board.bishops[fren_color]
         | board.king[fren_color]
         | board.knights[fren_color]
         | board.pawns[fren_color]
         | board.queens[fren_color]
         | board.rooks[fren_color];
+    // TODO: replace with `board.occupancies_of(opp_color)`
     let opp_occupancies = board.bishops[opp_color]
         | board.king[opp_color]
         | board.knights[opp_color]
@@ -40,7 +42,14 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
     add_bishop_moves(board, fren_color, all_occ, fren_occ, &mut moves);
     add_king_moves(board, fren_color, fren_occ, all_occ, opp_color, &mut moves);
     add_knight_moves(board, fren_occ, fren_color, &mut moves);
-    add_pawn_moves(board, all_occ, opp_occupancies, fren_color, &mut moves);
+    add_pawn_moves(
+        board,
+        all_occ,
+        opp_occupancies,
+        fren_color,
+        opp_color,
+        &mut moves,
+    );
     add_queen_moves(board, fren_color, all_occ, fren_occ, &mut moves);
     add_rook_moves(board, fren_color, all_occ, fren_occ, &mut moves);
 
@@ -125,16 +134,17 @@ fn add_pawn_moves(
     board: &Board,
     all_occupancies: u64,
     opp_occupancies: u64,
-    friendly_color: Color,
+    fren_color: Color,
+    opp_color: Color,
     moves: &mut Vec<Move>,
 ) {
     let (dir, can_do_double_push, is_prom): (_, fn(usize) -> bool, fn(usize) -> bool) =
-        match friendly_color {
+        match fren_color {
             Black => (SOUTH as i8, can_black_do_dbl_push, is_black_prom),
             White => (-(NORTH as i8), can_white_do_dbl_push, is_white_prom),
         };
 
-    let pawns = board.pawns[friendly_color];
+    let pawns = board.pawns[fren_color];
 
     for src_i in SetBitsIter(pawns) {
         let dst_i = (src_i as i8 + dir) as usize;
@@ -142,53 +152,48 @@ fn add_pawn_moves(
         if is_prom(dst_i) {
             // Promotions
             if !bit_board::is_bit_set(all_occupancies, dst_i) {
-                moves.push(Move::new_prom(friendly_color, src_i, dst_i, Bishop));
-                moves.push(Move::new_prom(friendly_color, src_i, dst_i, Knight));
-                moves.push(Move::new_prom(friendly_color, src_i, dst_i, Queen));
-                moves.push(Move::new_prom(friendly_color, src_i, dst_i, Rook));
+                moves.push(Move::new_prom(fren_color, src_i, dst_i, Bishop));
+                moves.push(Move::new_prom(fren_color, src_i, dst_i, Knight));
+                moves.push(Move::new_prom(fren_color, src_i, dst_i, Queen));
+                moves.push(Move::new_prom(fren_color, src_i, dst_i, Rook));
             }
 
             // Capturing promotions
-            let captures = piece::get_pawn_attacks_for(src_i, &friendly_color) & opp_occupancies;
+            let captures = piece::get_pawn_attacks_for(src_i, &fren_color) & opp_occupancies;
             for capture in SetBitsIter(captures) {
-                moves.push(Move::new_prom(friendly_color, src_i, capture, Bishop));
-                moves.push(Move::new_prom(friendly_color, src_i, capture, Knight));
-                moves.push(Move::new_prom(friendly_color, src_i, capture, Queen));
-                moves.push(Move::new_prom(friendly_color, src_i, capture, Rook));
+                moves.push(Move::new_prom(fren_color, src_i, capture, Bishop));
+                moves.push(Move::new_prom(fren_color, src_i, capture, Knight));
+                moves.push(Move::new_prom(fren_color, src_i, capture, Queen));
+                moves.push(Move::new_prom(fren_color, src_i, capture, Rook));
             }
         } else {
             // Push
             if !bit_board::is_bit_set(all_occupancies, dst_i) {
-                moves.push(Move::new(friendly_color, Pawn, src_i, dst_i));
+                moves.push(Move::new(fren_color, Pawn, src_i, dst_i));
 
                 // Double push
                 if can_do_double_push(src_i) {
                     let dst_idx = (src_i as i8 + dir * 2) as usize;
 
                     if !bit_board::is_bit_set(all_occupancies, dst_idx) {
-                        moves.push(Move::new(friendly_color, Pawn, src_i, dst_idx));
+                        moves.push(Move::new(fren_color, Pawn, src_i, dst_idx));
                     }
                 }
             }
 
             // Captures
-            let captures = piece::get_pawn_attacks_for(src_i, &friendly_color)
-                & board.pawns[friendly_color.opposing()];
+            let captures = piece::get_pawn_attacks_for(src_i, &fren_color) & opp_occupancies;
             for capture in SetBitsIter(captures) {
-                moves.push(Move::new(friendly_color, Pawn, src_i, capture));
+                moves.push(Move::new(fren_color, Pawn, src_i, capture));
             }
 
             // En passant
             if let Some(en_passant_target_idx) = board.en_passant_target_idx {
                 if bit_board::is_bit_set(
-                    piece::get_pawn_attacks_for(src_i, &friendly_color),
+                    piece::get_pawn_attacks_for(src_i, &fren_color),
                     en_passant_target_idx,
                 ) {
-                    moves.push(Move::new_en_pass(
-                        friendly_color,
-                        src_i,
-                        en_passant_target_idx,
-                    ));
+                    moves.push(Move::new_en_pass(fren_color, src_i, en_passant_target_idx));
                 }
             }
         }
@@ -295,7 +300,7 @@ mod tests {
 
     use pretty_assertions::assert_eq;
 
-    use crate::fen::Fen;
+    use crate::{board, fen::Fen};
 
     use super::*;
 
@@ -456,31 +461,26 @@ mod tests {
     }
 
     #[test]
-    fn white_pawn_capture() {
-        let board = Board::from_fen("8/8/8/8/p1p5/1P7/8/8 w - - 0 0").unwrap();
+    fn pawn_capture() {
+        for (color, attacks) in [(Black, [D5, F5]), (White, [D7, F7])] {
+            for piece_to_cap in Piece::all_variants() {
+                let mut board = Board::new_empty();
+                board.is_whites_turn = color == White;
+                board.set(color, Pawn, E6);
 
-        assert_moves_eq(
-            &all_moves(&board),
-            &[
-                Move::new(White, Pawn, B3, A4),
-                Move::new(White, Pawn, B3, B4),
-                Move::new(White, Pawn, B3, C4),
-            ],
-        );
-    }
+                let mut exp_moves = vec![match color {
+                    Black => Move::new(Black, Pawn, E6, E5),
+                    White => Move::new(White, Pawn, E6, E7),
+                }];
 
-    #[test]
-    fn black_pawn_capture() {
-        let board = Board::from_fen("8/8/1p6/P1P5/8/8/8/8 b - - 0 0").unwrap();
+                for attack in attacks {
+                    board.set(color.opposing(), piece_to_cap, attack);
+                    exp_moves.push(Move::new(color, Pawn, E6, attack));
+                }
 
-        assert_moves_eq(
-            &all_moves(&board),
-            &[
-                Move::new(Black, Pawn, B6, B5),
-                Move::new(Black, Pawn, B6, A5),
-                Move::new(Black, Pawn, B6, C5),
-            ],
-        );
+                assert_moves_eq(&all_moves(&board), &exp_moves);
+            }
+        }
     }
 
     #[test]
