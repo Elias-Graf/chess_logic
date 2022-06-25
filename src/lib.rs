@@ -21,7 +21,7 @@ pub enum Color {
 }
 
 impl Color {
-    pub fn opposing(&self) -> Color {
+    pub const fn opposing(&self) -> Color {
         match self {
             Color::Black => Color::White,
             Color::White => Color::Black,
