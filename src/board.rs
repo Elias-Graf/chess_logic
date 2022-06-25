@@ -95,10 +95,16 @@ impl Board {
 
     /// Executes a given move.
     ///
+    /// Does prevent moves that would leave the king in check, and returns `false`.
+    ///
     /// The moves are simply executed without any additional validation. This can
     /// be especially problematic when performing special moves like en passant,
     /// or a castle. Be sure to only call with valid moves.
-    pub fn do_move(&mut self, mv: Move) {
+    // TODO: there is no reason to take ownership of `mv`. Take in a reference in
+    // the future.
+    pub fn do_move(&mut self, mv: Move) -> bool {
+        let board_bak = self.clone();
+
         let mv_color = mv.piece_color();
         let opp_color = mv_color.opposing();
         let mv_src = mv.src();
@@ -172,6 +178,17 @@ impl Board {
         }
 
         self.is_whites_turn = !self.is_whites_turn;
+
+        let king_pos =
+            Square::try_from(bit_board::get_first_set_bit(self.king[mv_color]).unwrap()).unwrap();
+        let is_king_attacked = self.is_pos_attacked_by(king_pos, &opp_color);
+
+        if is_king_attacked {
+            *self = board_bak;
+            return false;
+        }
+
+        true
     }
 
     /// Get the pice ([`PieceInstance`]) on the specified location
