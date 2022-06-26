@@ -7,15 +7,10 @@
 use chess_logic::{
     board::PieceInstance,
     fen::Fen,
-    move_generator::{self, Move},
-    Board, Color, Piece, Square,
+    move_generator::{self},
+    Board, Square,
 };
 
-use Color::*;
-use Piece::*;
-use Square::*;
-
-/// This implementation is similar to the one in stockfish. It should match it's output.
 fn perft(board: &Board, depth: usize, root: bool) -> usize {
     let mut nodes = 0;
 
@@ -63,7 +58,6 @@ fn perft(board: &Board, depth: usize, root: bool) -> usize {
     return nodes;
 }
 
-
 #[test]
 fn initial_position() {
     let board =
@@ -81,7 +75,8 @@ fn position_2() {
             .unwrap();
 
     assert_eq!(perft(&board, 1, true), 48);
-    // assert_eq!(perft(&board, 2, true), 2_039);
+    assert_eq!(perft(&board, 2, true), 2_039);
+    assert_eq!(perft(&board, 3, true), 97_862);
 }
 
 #[test]
@@ -90,7 +85,7 @@ fn position_3() {
 
     assert_eq!(perft(&board, 1, true), 14);
     assert_eq!(perft(&board, 2, true), 191);
-    // assert_eq!(perft(&board, 3, true), 2812);
+    assert_eq!(perft(&board, 3, true), 2812);
 }
 
 #[test]
@@ -100,25 +95,26 @@ fn position_4() {
 
     assert_eq!(perft(&board, 1, true), 6);
     assert_eq!(perft(&board, 2, true), 264);
-    // assert_eq!(perft(&board, 3, true), 9_467);
+    assert_eq!(perft(&board, 3, true), 9_467);
 }
 
 #[test]
 fn position_5() {
     let board =
-        Board::from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8  ").unwrap();
+        Board::from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8").unwrap();
 
     assert_eq!(perft(&board, 1, true), 44);
-    assert_eq!(perft(&board, 2, true), 1486);
+    assert_eq!(perft(&board, 2, true), 1_486);
+    assert_eq!(perft(&board, 3, true), 62_379);
 }
 
 #[test]
 fn position_6() {
-    let board = Board::from_fen(
-        "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10 ",
-    )
-    .unwrap();
+    let board =
+        Board::from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10")
+            .unwrap();
 
     assert_eq!(perft(&board, 1, true), 46);
     assert_eq!(perft(&board, 2, true), 2_079);
+    assert_eq!(perft(&board, 3, true), 89_890);
 }
