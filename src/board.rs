@@ -155,14 +155,6 @@ impl Board {
             self.set(mv_color, Rook, rook_dst);
         }
 
-        // Handle double pawn push (mark en passant target)
-        if mv.is_dbl_push() {
-            self.en_passant_target_idx = Some(match mv_color {
-                Black => mv_dst - NORTH,
-                White => mv_dst + SOUTH,
-            });
-        }
-
         // Handle en passant
         if mv.is_en_passant() {
             let en_pass_cap_idx = match mv_color {
@@ -171,6 +163,18 @@ impl Board {
             };
 
             self.clear(opp_color, Pawn, en_pass_cap_idx);
+        }
+
+        // En passant is only valid for the next turn immediately after, thus
+        // the flag is always cleared.
+        self.en_passant_target_idx = None;
+
+        // Handle double pawn push (mark en passant target)
+        if mv.is_dbl_push() {
+            self.en_passant_target_idx = Some(match mv_color {
+                Black => mv_dst - NORTH,
+                White => mv_dst + SOUTH,
+            });
         }
 
         // Handle pawn promotions
@@ -795,6 +799,16 @@ mod tests {
             board.do_move(Move::new_en_pass(color, src, dst));
             assert_eq!(board.get(en_pass_cap_idx), None);
         }
+    }
+
+    #[test]
+    fn do_move_en_passant_clear_flag() {
+        let mut board = Board::from_fen("4k3/p7/8/8/8/8/P7/4K3 w - - 0 0").unwrap();
+
+        board.do_move(Move::new_dbl_push(White, A2, A4));
+        board.do_move(Move::new(Black, Pawn, A7, A6));
+
+        assert_eq!(board.en_passant_target_idx, None);
     }
 
     #[test]
