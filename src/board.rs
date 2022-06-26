@@ -183,8 +183,19 @@ impl Board {
             self.set(mv_color, prom_to, mv_dst);
         }
 
+        // Remove the castling rights if the rooks are captured.
+        match mv_dst {
+            0  /* Square::A8 */ => self.can_black_castle_queen_side = false,
+            7  /* Square::H8 */ => self.can_black_castle_king_side = false,
+            56 /* Square::A1 */ => self.can_white_castle_queen_side = false,
+            63 /* Square::H1 */ => self.can_white_castle_king_side = false,
+            _ => (),
+        }
+
         self.is_whites_turn = !self.is_whites_turn;
 
+        // Check if the king is attacked on this new board constellation. If this
+        // is the case, the move was not legal, and the board is reverted.
         let king_pos =
             Square::try_from(bit_board::get_first_set_bit(self.king[mv_color]).unwrap()).unwrap();
         let is_king_attacked = self.is_pos_attacked_by(king_pos, &opp_color);
@@ -840,5 +851,22 @@ mod tests {
 
         board.do_move(Move::new(Black, King, E8, E7));
         assert_eq!(board.get_fen(), "8/4k3/8/8/8/8/4K3/8 w - - 0 0");
+    }
+
+    #[test]
+    fn do_move_castling_rights_removed_if_rook_is_taken() {
+        let mut board = Board::from_fen("r3k2r/1P4P1/8/8/8/8/1p4p1/R3K2R w KQkq - 0 0").unwrap();
+
+        board.do_move(Move::new(White, Pawn, B7, A8));
+        assert!(!board.can_black_castle_queen_side);
+
+        board.do_move(Move::new(White, Pawn, G7, H8));
+        assert!(!board.can_black_castle_king_side);
+
+        board.do_move(Move::new(Black, Pawn, B2, A1));
+        assert!(!board.can_white_castle_queen_side);
+
+        board.do_move(Move::new(Black, Pawn, G2, H1));
+        assert!(!board.can_white_castle_king_side);
     }
 }
