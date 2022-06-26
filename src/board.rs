@@ -154,7 +154,7 @@ impl Board {
         }
 
         // Handle double pawn push (mark en passant target)
-        if mv.is_double_push() {
+        if mv.is_dbl_push() {
             self.en_passant_target_idx = Some(match mv_color {
                 Black => mv_dst - NORTH,
                 White => mv_dst + SOUTH,
@@ -790,7 +790,7 @@ mod tests {
             board.set(color, Pawn, src);
 
             let mut mv = Move::new(color, Pawn, src, dst);
-            mv.set_is_double_push(true);
+            mv.set_is_dbl_push(true);
 
             board.do_move(mv);
 

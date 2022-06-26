@@ -146,6 +146,7 @@ fn add_pawn_moves(
 
     let pawns = board.pawns[fren_color];
 
+    // TODO: refactor candidate?
     for src_i in SetBitsIter(pawns) {
         let dst_i = (src_i as i8 + dir) as usize;
 
@@ -176,7 +177,7 @@ fn add_pawn_moves(
                     let dst_idx = (src_i as i8 + dir * 2) as usize;
 
                     if !bit_board::is_bit_set(all_occupancies, dst_idx) {
-                        moves.push(Move::new(fren_color, Pawn, src_i, dst_idx));
+                        moves.push(Move::new_dbl_push(fren_color, src_i, dst_idx));
                     }
                 }
             }
@@ -338,7 +339,7 @@ mod tests {
                 board.is_whites_turn = color == White;
                 board.set(color, Pawn, src_idx);
 
-                let (dst_1, dst_2) = match color {
+                let (dst, dst_dbl) = match color {
                     Black => (src_idx + SOUTH, src_idx + SOUTH * 2),
                     White => (src_idx - NORTH, src_idx - NORTH * 2),
                 };
@@ -346,8 +347,8 @@ mod tests {
                 assert_moves_eq(
                     &all_moves(&board),
                     &vec![
-                        Move::new(color, Pawn, src_idx, dst_1),
-                        Move::new(color, Pawn, src_idx, dst_2),
+                        Move::new(color, Pawn, src_idx, dst),
+                        Move::new_dbl_push(color, src_idx, dst_dbl),
                     ],
                 );
             }
@@ -1314,7 +1315,7 @@ mod tests {
 pub struct Move {
     dst: usize,
     is_castle: bool,
-    is_double_push: bool,
+    is_dbl_push: bool,
     is_en_passant: bool,
     piece: Piece,
     piece_color: Color,
@@ -1331,8 +1332,8 @@ impl Move {
         self.is_castle
     }
 
-    pub fn is_double_push(&self) -> bool {
-        self.is_double_push
+    pub fn is_dbl_push(&self) -> bool {
+        self.is_dbl_push
     }
 
     pub fn is_en_passant(&self) -> bool {
@@ -1343,7 +1344,7 @@ impl Move {
         Self {
             dst: dst.into(),
             is_castle: false,
-            is_double_push: false,
+            is_dbl_push: false,
             is_en_passant: false,
             piece,
             piece_color: color,
@@ -1356,6 +1357,13 @@ impl Move {
         Self {
             is_castle: true,
             ..Self::new(color, King, src, dst)
+        }
+    }
+
+    pub fn new_dbl_push(color: Color, src: impl BoardPos, dst: impl BoardPos) -> Self {
+        Self {
+            is_dbl_push: true,
+            ..Self::new(color, Pawn, src, dst)
         }
     }
 
@@ -1401,8 +1409,8 @@ impl Move {
         self.is_castle = val;
     }
 
-    pub fn set_is_double_push(&mut self, val: bool) {
-        self.is_double_push = val;
+    pub fn set_is_dbl_push(&mut self, val: bool) {
+        self.is_dbl_push = val;
     }
 
     pub fn set_is_en_passant(&mut self, val: bool) {
@@ -1447,6 +1455,10 @@ impl Display for Move {
 
         if self.is_en_passant {
             write!(f, " (en passant)")?;
+        }
+
+        if self.is_dbl_push() {
+            write!(f, " (double push)")?;
         }
 
         if let Some(promote_to) = self.prom_to {
