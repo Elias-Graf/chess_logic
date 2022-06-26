@@ -261,7 +261,6 @@ impl Board {
 
         let all_occ = self.all_occupancies();
         let def_color = atk_color.opposing();
-        let def_occ = self.occupancies_of(def_color);
 
         if bit_board::has_set_bits(
             piece::get_bishop_attacks_for(pos, all_occ) & self.bishops[*atk_color],
@@ -281,9 +280,7 @@ impl Board {
 
         if bit_board::has_set_bits(
             piece::get_pawn_attacks_for(pos, &def_color) & self.pawns[*atk_color],
-            // Pawn can only attack if the square is occupied
-        ) & bit_board::is_bit_set(def_occ, pos.into())
-        {
+        ) {
             return true;
         }
 
@@ -550,34 +547,12 @@ mod tests {
     }
 
     #[test]
-    fn is_pos_attacked_by_pawn_no_enemy() {
+    fn is_pos_attacked_by_pawn() {
         for (color, attacks) in [(Black, [D5, F5]), (White, [D7, F7])] {
             let mut board = Board::new_empty();
             board.set(color, Pawn, E6);
 
             for attack in attacks {
-                assert!(
-                    !board.is_pos_attacked_by(attack, &color),
-                    "pos '{:?}' was unjustifiably attacked by {:?} pawn",
-                    attack,
-                    color,
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn is_pos_attacked_by_pawn_with_enemy() {
-        for (color, attacks) in [(Black, [D5, F5]), (White, [D7, F7])] {
-            let mut board = Board::new_empty();
-            board.set(color, Pawn, E6);
-
-            for attack in attacks {
-                let mut board = board.clone();
-                board.set(color.opposing(), Pawn, attack);
-
-                println!("{:?} {:?} attacks {:?}", color, E6, attack);
-
                 assert!(
                     board.is_pos_attacked_by(attack, &color),
                     "pos '{:?}' was not attacked by {:?} pawn",
