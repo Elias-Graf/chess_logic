@@ -42,14 +42,7 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
     add_bishop_moves(board, fren_color, all_occ, fren_occ, &mut moves);
     add_king_moves(board, fren_color, fren_occ, all_occ, opp_color, &mut moves);
     add_knight_moves(board, fren_occ, fren_color, &mut moves);
-    add_pawn_moves(
-        board,
-        all_occ,
-        opp_occupancies,
-        fren_color,
-        opp_color,
-        &mut moves,
-    );
+    add_pawn_moves(board, all_occ, opp_occupancies, fren_color, &mut moves);
     add_queen_moves(board, fren_color, all_occ, fren_occ, &mut moves);
     add_rook_moves(board, fren_color, all_occ, fren_occ, &mut moves);
 
@@ -135,7 +128,6 @@ fn add_pawn_moves(
     all_occupancies: u64,
     opp_occupancies: u64,
     fren_color: Color,
-    opp_color: Color,
     moves: &mut Vec<Move>,
 ) {
     let (dir, can_do_double_push, is_prom): (_, fn(usize) -> bool, fn(usize) -> bool) =
