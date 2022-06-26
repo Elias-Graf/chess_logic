@@ -95,20 +95,20 @@ fn add_king_moves(
         moves.push(Move::new_castle(fren_color, src, dst));
     };
 
-    // TODO: Check if it's actually whites turn
-    if board.can_white_castle_queen_side {
-        castle(1008806316530991104, &[B1, C1, D1, E1], E1, C1);
-    }
-    if board.can_white_castle_king_side {
-        castle(6917529027641081856, &[E1, F1, G1], E1, G1);
-    }
-
     // TODO: Check if it's actually blacks turn
     if board.can_black_castle_queen_side {
-        castle(14, &[B8, C8, D8, E8], E8, C8);
+        castle(14, &[C8, D8, E8], E8, C8);
     }
     if board.can_black_castle_king_side {
         castle(96, &[E8, F8, G8], E8, G8);
+    }
+
+    // TODO: Check if it's actually whites turn
+    if board.can_white_castle_queen_side {
+        castle(1008806316530991104, &[C1, D1, E1], E1, C1);
+    }
+    if board.can_white_castle_king_side {
+        castle(6917529027641081856, &[E1, F1, G1], E1, G1);
     }
 
     add_king_moves_normal(board, fren_color, fren_occ, moves);
@@ -301,7 +301,7 @@ mod tests {
 
     use pretty_assertions::assert_eq;
 
-    use crate::{board, fen::Fen};
+    use crate::fen::Fen;
 
     use super::*;
 
@@ -630,25 +630,25 @@ mod tests {
     // TODO: refactor castle tests
     #[test]
     fn white_king_queen_side_castle() {
-        let board = Board::from_fen("8/8/8/8/8/8/8/R3K3 w Q - 0 0").unwrap();
+        let board = Board::from_fen("1r6/8/8/8/8/8/8/R3K3 w Q - 0 0").unwrap();
 
-        let mut expected_moves = Vec::new();
-        add_king_moves_normal(&board, White, 0, &mut expected_moves);
+        let mut exp_moves = Vec::new();
+        add_king_moves_normal(&board, White, 0, &mut exp_moves);
         add_rook_moves(
             &board,
             White,
             board.all_occupancies(),
             board.king[White],
-            &mut expected_moves,
+            &mut exp_moves,
         );
-        expected_moves.push(Move::new_castle(White, E1, C1));
+        exp_moves.push(Move::new_castle(White, E1, C1));
 
-        assert_moves_eq(&all_moves(&board), &expected_moves);
+        assert_moves_eq(&all_moves(&board), &exp_moves);
     }
 
     #[test]
     fn black_king_queen_side_castle() {
-        let board = Board::from_fen("r3k3/8/8/8/8/8/8/8 b q - 0 0").unwrap();
+        let board = Board::from_fen("r3k3/8/8/8/8/8/8/1R6 b q - 0 0").unwrap();
 
         let mut exp_moves = Vec::new();
         add_king_moves_normal(&board, Black, 0, &mut exp_moves);
@@ -712,7 +712,7 @@ mod tests {
     fn white_king_queen_side_castle_attacked() {
         let board = Board::from_fen("8/8/8/8/8/8/8/R3K3 w Q - 0 0").unwrap();
 
-        for i in 57..61 {
+        for i in 58..61 {
             let mut board = board.clone();
             board.set(Black, Rook, i - NORTH);
 
@@ -734,7 +734,7 @@ mod tests {
     fn black_king_queen_side_castle_attacked() {
         let board = Board::from_fen("r3k3/8/8/8/8/8/8/8 b q - 0 0").unwrap();
 
-        for i in 1..5 {
+        for i in 2..5 {
             let mut board = board.clone();
             board.set(White, Rook, i + SOUTH);
 
@@ -1453,16 +1453,20 @@ impl Display for Move {
             Square::try_from(self.dst()).unwrap(),
         )?;
 
-        if self.is_en_passant {
-            write!(f, " (en passant)")?;
+        if self.is_castle() {
+            write!(f, " (castle)")?;
         }
 
         if self.is_dbl_push() {
             write!(f, " (double push)")?;
         }
 
+        if self.is_en_passant {
+            write!(f, " (en passant)")?;
+        }
+
         if let Some(promote_to) = self.prom_to {
-            write!(f, " [promote to: '{:?}']", promote_to)?;
+            write!(f, " (promotion to: '{:?}')", promote_to)?;
         }
 
         Ok(())

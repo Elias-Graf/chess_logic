@@ -60,6 +60,8 @@ impl Board {
     /// Combines all bit boards into a single one.
     ///
     /// This is achieved using the `|` (bitwise or) operator.
+    // TODO: This function exposes information (bitboard) that should (?) be abstracted
+    // away.
     pub fn all_occupancies(&self) -> u64 {
         // TODO: This should be replaceable by:
         // ```
@@ -366,6 +368,9 @@ impl Board {
         board
     }
 
+    /// Get the occupied squares of a certain color.
+    // TODO: This function exposes information (bitboard) that should (?) be abstracted
+    // away.
     pub fn occupancies_of(&self, color: Color) -> u64 {
         self.bishops[color]
             | self.king[color]
