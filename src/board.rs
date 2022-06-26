@@ -671,19 +671,16 @@ mod tests {
 
     #[test]
     fn do_move() {
-        let mut board = Board::from_fen("1n6/7p/8/8/8/8/P7/8 w - - 0 0").unwrap();
-        board.set(White, Pawn, A2);
-        board.set(Black, Pawn, H7);
-        board.set(Black, Knight, B8);
+        let mut board = Board::from_fen("1n2k3/7p/8/8/8/8/P7/4K3 w - - 0 0").unwrap();
 
         board.do_move(Move::new(White, Pawn, A2, A3));
-        assert_eq!(board.get_fen(), "1n6/7p/8/8/8/P7/8/8 b - - 0 0");
+        assert_eq!(board.get_fen(), "1n2k3/7p/8/8/8/P7/8/4K3 b - - 0 0");
 
         board.do_move(Move::new(Black, Pawn, H7, H6));
-        assert_eq!(board.get_fen(), "1n6/8/7p/8/8/P7/8/8 w - - 0 0");
+        assert_eq!(board.get_fen(), "1n2k3/8/7p/8/8/P7/8/4K3 w - - 0 0");
 
         board.do_move(Move::new(Black, Knight, B8, A6));
-        assert_eq!(board.get_fen(), "8/8/n6p/8/8/P7/8/8 b - - 0 0");
+        assert_eq!(board.get_fen(), "4k3/8/n6p/8/8/P7/8/4K3 b - - 0 0");
     }
 
     #[test]
@@ -729,13 +726,15 @@ mod tests {
 
     #[test]
     fn do_move_capture() {
-        let mut board = Board::from_fen("8/8/2n5/r7/8/8/3B4/8 w - - 0 0").unwrap();
+        let mut board = Board::from_fen("4k3/8/2n5/r7/8/8/3B4/4K3 w - - 0 0").unwrap();
 
         board.do_move(Move::new(White, Bishop, D2, A5));
-        assert_eq!(board.get_fen(), "8/8/2n5/B7/8/8/8/8 b - - 0 0");
+        assert_eq!(board.get_fen(), "4k3/8/2n5/B7/8/8/8/4K3 b - - 0 0");
 
         board.do_move(Move::new(Black, Knight, C6, A5));
-        assert_eq!(board.get_fen(), "8/8/8/n7/8/8/8/8 w - - 0 0");
+        assert_eq!(board.get_fen(), "4k3/8/8/n7/8/8/8/4K3 w - - 0 0");
+        // TODO: Investigate if this "low" level bitboard access is necessary.
+        // It breaks the abstraction provided by the board.
         assert_eq!(
             bit_board::is_bit_set(board.bishops[White], A5.into()),
             false,
@@ -786,7 +785,7 @@ mod tests {
                 White => (usize::from(src) - NORTH * 2, usize::from(src) - NORTH),
             };
 
-            let mut board = Board::new_empty();
+            let mut board = Board::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 0").unwrap();
             board.set(color, Pawn, src);
 
             let mut mv = Move::new(color, Pawn, src, dst);
@@ -807,6 +806,8 @@ mod tests {
             };
 
             let mut board = Board::new_empty();
+            board.set(Black, King, E8);
+            board.set(White, King, E1);
             board.set(color, Pawn, src);
             board.set(color.opposing(), Pawn, en_pass_cap_idx);
             board.en_passant_target_idx = Some(dst.into());
@@ -823,7 +824,7 @@ mod tests {
             (White, Queen, B7, B8),
             (Black, Rook, H2, H1),
         ] {
-            let mut board = Board::new_empty();
+            let mut board = Board::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 0").unwrap();
             board.set(color, Pawn, src);
 
             board.do_move(Move::new_prom(color, src, dst, prom_to));
