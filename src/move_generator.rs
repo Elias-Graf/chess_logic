@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display};
 
 use crate::{
-    bit_board::{self, NORTH, SOUTH},
+    bit_board::{self, SetBitsIter, NORTH, SOUTH},
     board::BoardPos,
     piece::{self},
     Board,
@@ -243,22 +243,6 @@ fn add_rook_moves(
         Rook,
         moves,
     );
-}
-
-struct SetBitsIter(u64);
-
-impl Iterator for SetBitsIter {
-    type Item = usize;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(i) = bit_board::get_first_set_bit(self.0) {
-            bit_board::clear_bit(&mut self.0, i);
-
-            return Some(i as usize);
-        }
-
-        None
-    }
 }
 
 fn squares_attacked_by(squares: &[Square], board: &Board, color: Color) -> bool {

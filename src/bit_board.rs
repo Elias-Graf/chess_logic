@@ -135,6 +135,22 @@ pub fn display(board: u64) -> String {
     val
 }
 
+pub struct SetBitsIter(pub u64);
+
+impl Iterator for SetBitsIter {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(i) = get_first_set_bit(self.0) {
+            clear_bit(&mut self.0, i);
+
+            return Some(i as usize);
+        }
+
+        None
+    }
+}
+
 pub type U64PerSquare = [u64; Board::SIZE];
 
 impl TypeAliasDefault for U64PerSquare {
