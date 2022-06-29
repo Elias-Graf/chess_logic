@@ -1,5 +1,6 @@
 pub mod bit_board;
 pub mod board;
+pub mod evaluation;
 pub mod fen;
 pub mod magic_bit_board;
 pub mod move_generator;
